@@ -1,0 +1,78 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "id": "openspec-pulse",
+  "name": "OpenSpec Pulse",
+  "version": "0.1.0",
+  "description": "Track OpenSpec changes, task progress, archived proposals and specs in Orca's sidebar. Continue the next step with Claude Code.",
+  "publisher": "dos2locos",
+  "author": { "name": "Dos2Locos", "url": "https://github.com/Dos2Locos" },
+  "repository": "https://github.com/Dos2Locos/openspec-pulse",
+  "homepage": "https://github.com/Dos2Locos/openspec-pulse#readme",
+  "license": "MIT",
+  "cover": {
+    "path": "media/cover.jpg",
+    "alt": "OpenSpec Pulse: Your specs. In motion. Three specification sheets connected by a pulse line show drafting, implementation and completion."
+  },
+  "screenshots": [
+    {
+      "path": "media/workflow-light.png",
+      "alt": "OpenSpec Pulse in a light theme: active change states and progress beside a change's artifacts and grouped tasks, using sample data.",
+      "caption": "From proposal to completed tasks. Real plugin UI with sample workspace data.",
+      "theme": "light"
+    },
+    {
+      "path": "media/workflow-dark.png",
+      "alt": "OpenSpec Pulse in a dark theme: active change states and progress beside a change's artifacts and grouped tasks, using sample data.",
+      "caption": "Follow the next step, with support for light and dark themes.",
+      "theme": "dark"
+    },
+    {
+      "path": "media/archive-specs.png",
+      "alt": "OpenSpec Pulse showing archived proposals and shared capability specs side by side, using sample data.",
+      "caption": "Keep completed proposals and shared specs within reach. Sample workspace."
+    }
+  ],
+  "engines": {
+    "orca": ">=1.4.259"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "changes",
+        "title": "OpenSpec",
+        "icon": "layers",
+        "entry": "src/panel/main.ts",
+        "ui": "html"
+      }
+    ],
+    "commands": [
+      {
+        "id": "openspec-pulse.showPanel",
+        "title": "OpenSpec Pulse: Show panel"
+      }
+    ],
+    "events": [
+      { "on": "workspace.changed" }
+    ],
+    "statusBarItems": [
+      {
+        "id": "summary",
+        "text": "OpenSpec",
+        "icon": "layers",
+        "tooltip": "OpenSpec Pulse",
+        "command": "openspec-pulse.showPanel"
+      }
+    ]
+  },
+  "capabilities": [
+    { "kind": "workspace:read" },
+    { "kind": "workspace:write" },
+    { "kind": "agent:read" },
+    { "kind": "terminal:send" },
+    { "kind": "storage:own" }
+  ]
+}

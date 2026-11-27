@@ -1,0 +1,17 @@
+{
+  "name": "openspec-pulse",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "orca plugin types . && tsc -p . --noEmit",
+    "test": "orca plugin test .",
+    "validate": "orca plugin validate .",
+    "media:preview": "node scripts/media-preview.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "~5.6.3"
+  }
+}
