@@ -3,7 +3,7 @@
   "manifestVersion": 2,
   "id": "openspec-pulse",
   "name": "OpenSpec Pulse",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Track OpenSpec changes, tasks, specs and shared stores in Orca's sidebar and board. Review agent commands and local Claude/Codex usage, in English, Spanish or Simplified Chinese.",
   "publisher": "dos2locos",
   "author": {

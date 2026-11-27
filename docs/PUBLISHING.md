@@ -6,8 +6,8 @@ publication; running the publishing commands below makes the plugin public in th
 
 ## Current release preparation
 
-The release version is **0.2.0**, consistently declared in the manifest, package and lockfile.
-The existing `v0.1.0` tag is preserved. [Release notes](RELEASE-NOTES.md) describe all completed
+The release version is **0.2.1**, consistently declared in the manifest, package and lockfile.
+The existing `v0.1.0` tag is preserved. [Release notes](RELEASE-NOTES-0.2.1.md) describe all completed
 work, including automatic agent usage, dedicated Stores/Spend tabs and three-language UI.
 The [usage guide](USAGE.md) holds the detailed feature manual.
 
@@ -23,7 +23,7 @@ publishing this tested implementation.
 | Name | OpenSpec Pulse |
 | Plugin ID | `openspec-pulse` |
 | Publisher / installed key | `dos2locos` / `dos2locos.openspec-pulse` (local folders use `local.openspec-pulse`) |
-| Version / tag | `0.2.0` / `v0.2.0` |
+| Version / tag | `0.2.1` / `v0.2.1` |
 | Requires | Orca desktop `>=1.4.259`, local workspace |
 | License | MIT |
 | Description | Track OpenSpec changes, tasks, specs and shared stores in Orca's sidebar and board. Review agent commands and local Claude/Codex usage, in English, Spanish or Simplified Chinese. |
@@ -84,9 +84,15 @@ The six reviewed gallery images cover sidebar, board, shared stores, automatic u
 localization. They use shipping UI modules with synthetic data. Tools/language galleries use
 1.1× framing so the store forms fit; the other galleries use 1.25× framing.
 
-The board/tools/language screenshots were added after the `v0.2.0` source tag and are attached
-to that GitHub release and embedded in its notes. The tag is preserved. Their manifest entries
-on `main` will enter the directory's tagged source gallery with the next version tag.
+The board/tools/language screenshots were first attached to the GitHub `v0.2.0` release.
+The `v0.2.1` source tag includes all six screenshots and their manifest entries, so the
+marketplace can copy them from a pinned release. Existing tags are preserved.
+
+On 27 November the marketplace status for `v0.2.0` reported **Under review · code**:
+a maintainer must review this code-bearing plugin before it is listed. Local CLI validation
+passes but does not grant marketplace approval. Publishing `v0.2.1` submits the updated
+gallery; visibility still depends on that review and the indexer's next run (the status
+page currently states a 30-minute cadence).
 
 The cover was generated with the built-in `imagegen` tool and exported as JPEG at 1600×1000.
 Prompt:
@@ -136,17 +142,17 @@ Images are allowed. Confirm all four listing images are tracked in the tagged co
    commit, push, release or repository edit. Do not use another globally active account.
    Prepare a release commit containing only completed work, documentation and reviewed media.
    Update `orca-plugin.json`, `package.json` and both root version entries in `package-lock.json`
-   to the final version (`0.2.0`). Move the completed `Unreleased` entries in
+   to the final version (`0.2.1`). Move the completed `Unreleased` entries in
    `CHANGELOG.md` under that version and date. Run the checks above against that exact checkout,
    commit and push to `origin`. Confirm the working tree is clean.
 2. Create and push the version tag for that exact commit:
 
    ```sh
-   git tag -a v0.2.0 -m 'OpenSpec Pulse 0.2.0'
-   git push origin v0.2.0
+   git tag -a v0.2.1 -m 'OpenSpec Pulse 0.2.1'
+   git push origin v0.2.1
    ```
 
-3. Using the verified account, publish the GitHub release for the same tag with the reviewed body from `docs/RELEASE-NOTES.md`.
+3. Using the verified account, publish the GitHub release for the same tag with the reviewed body from `docs/RELEASE-NOTES-0.2.1.md`.
    Enable directory discovery if the topic is not already present:
 
    ```sh

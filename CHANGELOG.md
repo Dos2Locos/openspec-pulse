@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-11-27
+
+- Include all six reviewed screenshots in the tagged marketplace manifest, with board,
+  dedicated Stores/Spend and Spanish/Simplified Chinese views leading the gallery.
+- Add reproducible gallery layouts and updated README/publication documentation.
+- No runtime behavior or permission changes from 0.2.0.
+
 ## 0.2.0 — 2026-11-27
 
 - Separate Active, Archive, Specs, Stores and Spend into focused tabs shared by sidebar and
