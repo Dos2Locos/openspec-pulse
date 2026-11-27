@@ -1,3 +1,4 @@
+import { t, uiLocale } from './i18n'
 // State, next step and summaries of OpenSpec changes, shared by the panel and the worker so the
 // strip, the cards and the status bar always agree. Pure: no Orca or DOM imports.
 import type { AgentAction, Change, ChangesState, TaskCount } from './protocol'
@@ -18,17 +19,12 @@ const STEP_ARTIFACT = { proposal: 'proposal.md', specs: 'specs/', design: 'desig
 /** The summary strip's order. */
 export const STATE_ORDER: readonly ChangeState[] = ['in-progress', 'not-started', 'drafting', 'done']
 export const STATE_LABEL: Record<ChangeState, string> = {
-  drafting: 'Drafting',
-  'not-started': 'Not started',
-  'in-progress': 'In progress',
-  done: 'Done'
+  get drafting() { return t('Drafting') },
+  get 'not-started'() { return t('Not started') },
+  get 'in-progress'() { return t('In progress') },
+  get done() { return t('Done') }
 }
-const ACTION_LABEL: Record<ChangeAction, string> = {
-  continue: 'Continue',
-  apply: 'Apply',
-  verify: 'Verify',
-  archive: 'Archive'
-}
+const actionLabels = (): Record<ChangeAction, string> => ({ continue: t('Continue'), apply: t('Apply'), verify: t('Verify'), archive: t('Archive') })
 const ACTION_ORDER: readonly ChangeAction[] = ['continue', 'apply', 'verify', 'archive']
 export const TOOLTIP_MAX_CHARS = 256
 
@@ -36,7 +32,7 @@ const hasTasks = (change: Change): boolean => (change.tasks?.total ?? 0) > 0
 
 export function changeState(change: Change): ChangeState {
   const tasks = change.tasks
-  if (!tasks || tasks.total === 0) return 'drafting'
+  if (change.missingArtifacts?.length || !tasks || tasks.total === 0) return 'drafting'
   if (tasks.done === 0) return 'not-started'
   return tasks.done === tasks.total ? 'done' : 'in-progress'
 }
@@ -52,11 +48,12 @@ export function steps(change: Change): Record<Step, StepMark> {
 
 /** The one primary action: continue while planning, apply while tasks are pending, then archive. */
 export function nextStep(change: Change): NextStep {
+  if (change.missingArtifacts?.length) return { action: 'continue', label: t('Continue: {p0}', { p0: change.missingArtifacts[0] }) }
   const next = STEPS.find((step) => steps(change)[step] === 'next')
-  if (next) return { action: 'continue', label: `Continue: ${next}` }
+  if (next) return { action: 'continue', label: t('Continue: {p0}', { p0: t(next) }) }
   // shortcut: a tasks.md without checkboxes has nothing to apply, so the agent continues planning.
-  if (!hasTasks(change)) return { action: 'continue', label: 'Continue' }
-  return changeState(change) === 'done' ? { action: 'archive', label: 'Archive' } : { action: 'apply', label: 'Apply' }
+  if (!hasTasks(change)) return { action: 'continue', label: t('Continue') }
+  return changeState(change) === 'done' ? { action: 'archive', label: t('Archive') } : { action: 'apply', label: t('Apply') }
 }
 
 /** The four actions of a change, the next step marked primary; apply and verify need tasks. */
@@ -64,10 +61,10 @@ export function actionButtons(change: Change): ActionButton[] {
   const primary = nextStep(change).action
   const tasks = hasTasks(change)
   return ACTION_ORDER.map((action) => {
-    const button = { action, label: ACTION_LABEL[action], primary: action === primary }
+    const button = { action, label: actionLabels()[action], primary: action === primary }
     const needsTasks = action === 'apply' || action === 'verify'
     return needsTasks && !tasks
-      ? { ...button, disabled: true, reason: 'Needs tasks in tasks.md' }
+      ? { ...button, disabled: true, reason: t('Needs tasks in tasks.md') }
       : { ...button, disabled: false }
   })
 }
@@ -91,21 +88,19 @@ const DAY = 24 * HOUR
 /** `just now`, `5 min ago`, `3 h ago` or `2 d ago`. */
 export function relativeAge(ms: number, now: number): string {
   const age = Math.max(0, now - ms)
-  if (age < MINUTE) return 'just now'
-  if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`
-  if (age < DAY) return `${Math.floor(age / HOUR)} h ago`
-  return `${Math.floor(age / DAY)} d ago`
+  if (age < MINUTE) return t('just now')
+  const [unit, duration] = age < HOUR ? ['minute', MINUTE] as const : age < DAY ? ['hour', HOUR] as const : ['day', DAY] as const
+  if (uiLocale() === 'en') return age < HOUR ? t('{p0} min ago', { p0: Math.floor(age / duration) }) : age < DAY ? t('{p0} h ago', { p0: Math.floor(age / duration) }) : t('{p0} d ago', { p0: Math.floor(age / duration) })
+  return new Intl.RelativeTimeFormat(uiLocale(), { numeric: 'auto', style: 'short' }).format(-Math.floor(age / duration), unit)
 }
 
-const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
-
-/** Lines that fit in the limit, ending with `+N more` instead of cutting a line. */
+/** Lines that fit in the limit, ending with `+N` instead of cutting a line. */
 function fitLines(head: string, lines: readonly string[], max: number): string {
   let text = head
   for (const [index, line] of lines.entries()) {
     const rest = lines.length - index - 1
-    const more = rest > 0 ? `\n+${rest} more` : ''
-    if ((text + '\n' + line + more).length > max) return `${text}\n+${lines.length - index} more`
+    const more = rest > 0 ? `\n+${rest}` : ''
+    if ((text + '\n' + line + more).length > max) return `${text}\n+${lines.length - index}`
     text += '\n' + line
   }
   return text
@@ -117,12 +112,11 @@ export function statusBarSummary(list: ChangesState): StatusBarSummary {
   const { changes, workspace } = list
   const done = changes.reduce((sum, c) => sum + (c.tasks?.done ?? 0), 0)
   const total = changes.reduce((sum, c) => sum + (c.tasks?.total ?? 0), 0)
-  const text =
-    changes.length === 0 ? 'No changes' : total > 0 ? `${plural(changes.length, 'change')} · ${done}/${total}` : plural(changes.length, 'change')
+  const text = `OpenSpec · ${changes.length}${total > 0 ? ` · ${done}/${total}` : ''}`
   const tone = total === 0 ? 'neutral' : done === total ? 'success' : 'accent'
   const lines = changes.length
-    ? changes.map((c) => `${c.name} ${hasTasks(c) ? `${c.tasks!.done}/${c.tasks!.total}` : 'no tasks'}`)
-    : ['No active changes']
+    ? changes.map((c) => `${c.name} ${hasTasks(c) ? `${c.tasks!.done}/${c.tasks!.total}` : '—'}`)
+    : ['—']
   return { visible: true, text, tone, tooltip: fitLines(`OpenSpec · ${workspace}`, lines, TOOLTIP_MAX_CHARS) }
 }
 

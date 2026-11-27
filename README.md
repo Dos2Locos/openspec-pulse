@@ -2,239 +2,149 @@
 
 ![OpenSpec Pulse — Your specs. In motion.](media/cover.jpg)
 
-**Your OpenSpec workflow, in Orca's sidebar.** Track proposals, follow task progress,
-review archived changes and open shared specs without leaving your workspace.
+**Your OpenSpec workflow, in Orca's sidebar and main-area board.**
 
-See the [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes of the focused workspace in
-Orca's right sidebar: the active ones coloured by state with the one action that moves each forward,
-the archived ones, and the workspace's specs. A status bar item keeps the summary in view with the
-panel closed. Requires Orca 1.4.259 or later in the desktop app, and a local workspace: SSH and WSL
-workspaces are not read.
+Follow proposals from planning to archive, review task progress and specs, and send the next
+action to **Claude Code or Codex** after reviewing its exact prompt and destination.
 
-![Active changes and task detail in a light theme, with sample workspace data](media/workflow-light.png)
-![Active changes and task detail in a dark theme, with sample workspace data](media/workflow-dark.png)
-![Archived changes and shared specs, with sample workspace data](media/archive-specs.png)
+## What you can do
 
-These captures show the actual panel code with sample data in a presentation frame.
-They do not include personal workspaces or conversations.
+- **Track changes:** state filters, task progress, next actions, search, dependency order and
+  workspace-local favorites.
+- **Read in context:** artifact previews, archived proposals, specs and related changes.
+- **Review usage:** local Claude Code/Codex tokens and estimated API-equivalent USD, with
+  separate optional project run records.
+- **Follow your language:** English, Spanish (Spain) and Simplified Chinese, matching Orca.
+- **Work in either view:** a compact sidebar or a main-area board with four state columns.
+- **Choose the scope:** the focused workspace, registered sibling worktrees or shared OpenSpec
+  stores with explicit system prefixes.
+- **Review before sending:** choose an agent and an idle destination, run a whole change or one
+  pending task, and optionally display configured ticket links and GitHub PR delivery status.
+
+Task completion and PR delivery are separate signals. Sibling worktrees and shared-store changes
+are read-only for agent actions. The Spend tab shows local Claude Code/Codex usage and optional
+project run records, with coverage and estimated API-equivalent USD.
 
 ## Install
 
-### From GitHub or the marketplace
-
-Once the first version tag is published, search for **OpenSpec Pulse** in Orca's plugin
-directory, or install directly from GitHub:
+Enable plugins in Orca under **Settings → Plugins → Turn on plugins**. Install the latest
+tagged release from GitHub:
 
 ```sh
 orca plugin install Dos2Locos/openspec-pulse
 ```
 
-Orca displays the plugin's access and an approval fingerprint. Review it, then rerun the
-command with the exact `--approve <fingerprint>` it returns. Open **OpenSpec** in the right
-sidebar, or use **OpenSpec Pulse: Show panel** from the command palette.
+Review the access request and rerun the command with the exact
+`--approve <fingerprint>` Orca returns. Open **OpenSpec** in the right sidebar, or run
+**OpenSpec Pulse: Show panel** from the command palette.
 
-### From a local checkout
+For the main-area view, use **OpenSpec Pulse: Open board**. The board requires a Git workspace
+where `.orca/openspec.pulse-board` is already ignored; adding `.orca/` to `.gitignore` is enough.
 
-Turn plugins on in Orca (Settings → Plugins → **Turn on plugins**), then either add this folder
-under Settings → Plugins → **Development folders…** and enable it, or from a terminal:
-
-```sh
-orca plugin dev load .                     # prints an approval fingerprint
-orca plugin dev load . --approve <fingerprint>
-orca plugin open local.openspec-pulse      # shows the panel in the right sidebar
-```
-
-`orca plugin dev unload .` removes it. The plugin runs its own code in a worker and asks for
-`workspace:read`, `workspace:write`, `agent:read`, `terminal:send` and `storage:own`; Orca shows
-the list before you approve. This is a community plugin, independently maintained and not
-affiliated with or endorsed by Orca or OpenSpec.
+The directory installs the tagged release. This README on the default branch can describe
+changes prepared for the next release; see [CHANGELOG.md](CHANGELOG.md).
 
 ### Requirements
 
-- Orca desktop **1.4.259+**, with plugins enabled and a local workspace.
-- An existing `openspec/` workspace for browsing changes and specs. No OpenSpec CLI is
-  needed just to read it.
-- The [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) for **Initialize OpenSpec**.
-- Claude Code or Codex, configured in Orca, and the OpenSpec skills of that agent for the agent
-  buttons (`openspec init --tools claude` / `--tools codex` in your project).
-
-### Access and privacy
-
-The worker runs with your user account's access. Its declared capabilities let it read the
-focused workspace and agent status, open files and focus terminals, send OpenSpec prompts,
-and remember the selected change and, per workspace, the agent profile and model in its own storage. The plugin reads local `openspec/`
-files; initialization runs the OpenSpec CLI and agent buttons send prompts to Claude Code or Codex.
-It has no analytics or telemetry. The agent uses your configured account and service. No new
-permission is needed: profiles use `agent:read`, `terminal:send` and `storage:own`.
-
-## The panel
-
-The header shows the plugin name and version and a subtitle with the workspace and its situation
-(`rabbitfish · 2 changes`, `No OpenSpec here`, `remote`, `No workspace`). On the right, icon
-buttons: **+** (new proposal), **Explore** and **Refresh**. Without OpenSpec, or in a remote
-workspace, + and Explore are disabled.
-
-Under it, three tabs with their counts: `Active 2 · Archive 5 · Specs 3`. They show when the
-workspace has OpenSpec, are plain buttons (Tab to one, then Enter or Space) and give way to a
-detail's own back button. A workspace switch returns to `Active`. Everything refreshes by itself
-when a file under `openspec/` changes, so archiving a change moves it from `Active` to `Archive`
-without pressing Refresh.
-
-Each list has a search box: Active and Archive match change names, Specs match the capability path
-and Purpose. Case and accents are ignored (`autenticacion` finds `Autenticación`), every word must
-match, and the state filter of Active still applies. The tab counts stay the totals; the box shows
-`filtered of total`. Lists show 40 rows at a time; **Load more** (a plain button) adds the next
-batch. The search text is remembered per workspace and tab; the first tab after a workspace
-switch is still `Active`. Search covers names and Purpose only, not the text of artifacts.
-
-### Active
-
-A summary strip with one item per state that has changes, such as `● 2 in progress  ● 1 done`.
-Pressing an item lists only that state's changes; pressing it again lists them all. Below it, one
-card per change, most recently edited first:
-
-| Part | What it says |
+| Feature | Requirement |
 | --- | --- |
-| Stripe and pill | The state: `Drafting` (no tasks yet), `Not started` (0 done), `In progress` or `Done`. |
-| Progress bar | `done/total` of the `tasks.md` checkboxes, from red (0%) through yellow to green (100%); drafting changes have none. |
-| Stepper | `proposal › specs › design › tasks`: done, missing (struck through) or next (bold). |
-| `edited … ago` | The newest file in the change folder; kept current while the panel is open. |
-| Action buttons | Continue, apply, verify and archive as icons (the tooltip names each). The next step is filled: continue while planning, apply while tasks are pending, archive when all are done. Apply and verify need tasks. |
+| Sidebar and local browsing | Orca desktop **1.4.259+**, plugins enabled, a local OpenSpec workspace |
+| Agent actions | Claude Code or Codex configured in Orca, with the corresponding OpenSpec skills installed |
+| Initialize OpenSpec | The OpenSpec CLI available locally |
+| Board and sibling discovery | Git available outside the workspace; the board marker path must be ignored |
+| Shared stores | The tested **OpenSpec CLI 1.14.1** store contract on macOS |
+| Optional GitHub delivery | GitHub CLI, configured repositories/tickets and an explicitly selected local account |
 
-The stripe, pill and strip dots show the state: in progress uses the theme's primary colour, done a
-green (`#166534` light, `#3fb950` dark), not started and drafting the muted text colour. The pill
-always names the state, so colour is never the only signal. The panel uses Orca's `--orca-*` theme
-variables and follows theme switches without reloading.
+Reading local changes and specs does not require the OpenSpec CLI. SSH and WSL workspaces are
+not supported. Store operations are disabled with an explanation when the CLI contract is
+incompatible; local browsing remains available.
 
-Pressing a change's name opens its detail: its card, its artifacts and each
-`specs/<capability>/spec.md` (press one to open it in Orca's editor), and its tasks grouped by their
-`tasks.md` heading, each section with its own bar and each task with a checkbox (read-only). The
-open change is remembered per workspace.
+Install agent skills in your project with `openspec init --tools claude` or
+`openspec init --tools codex`, as appropriate for your agent and CLI version.
 
-### Archive
+## First use
 
-The folders of `openspec/changes/archive/`, newest first: the change name, its archive date (from
-the `YYYY-MM-DD-` prefix) and its final `done/total`. A row opens the same detail as an active
-change, read-only: an `Archived 26 Nov 2026` pill, a muted stripe, no action buttons, and files
-that open in Orca's editor.
+1. Open a local workspace with `openspec/` and select **OpenSpec** in the right sidebar.
+2. Choose **Active**, **Archive** or **Specs** to browse work, **Stores** to manage shared
+   stores, or **Spend** to review usage. Labels follow Orca’s language.
+3. For an active local change, choose an action, review its agent, destination and prompt, then
+   press **Send/Start**.
 
-### Specs
+Without an OpenSpec root, the panel offers **Initialize OpenSpec**. This creates the planning
+folders through the CLI; install agent skills separately.
 
-The capabilities of `openspec/specs/`, sorted by name: the capability, the first line of its
-`## Purpose` and `N requirements`. A row opens its `spec.md` in Orca's editor. With none, the tab
-says that archiving a change creates them.
+For configuration examples and feature limits, see the [usage guide](docs/USAGE.md):
+[dependencies](docs/USAGE.md#dependency-order-and-favorites),
+[agent commands](docs/USAGE.md#agent-commands),
+[project workflow](docs/USAGE.md#project-workflow-openspecpulsejson),
+[tickets and PRs](docs/USAGE.md#tickets-pull-requests-and-delivery),
+[board](docs/USAGE.md#main-area-board-and-artifact-previews) and
+[shared stores](docs/USAGE.md#shared-openspec-stores).
 
-## Agent commands
+Claude Code and Codex consumption appears automatically from local session usage metadata,
+with tokens and estimated API-equivalent USD by agent, model and month. No generated records
+or pulse.json are required. See [automatic consumption](docs/USAGE.md#automatic-claude-and-codex-consumption).
+Explicit project JSONL logs remain an optional, separate [recorded-spend view](docs/USAGE.md#recorded-agent-spend).
 
-+ and Explore open a form for the first prompt (Cmd+Enter starts it); the action buttons on a
-change (continue, apply, verify, archive) open the same sheet. **Nothing is sent until you press
-Start/Send**: the sheet shows the agent, the destination and the exact command first.
+## Access and privacy
 
-| Profile | Agent | Command style | Model |
-|---|---|---|---|
-| Claude Code · skills (default) | `claude` | `/openspec-apply-change <change>` | optional, new sessions only |
-| Codex · skills | `codex` | `$openspec-apply-change <change>` | not offered |
+Pulse is a **trusted-worker** community plugin: its worker runs with your user account's access.
+Orca declares `workspace:read`, `workspace:write`, `agent:read`, `terminal:send` and `storage:own`
+before installation approval.
 
-The six actions are `propose`, `explore`, `continue-change`, `apply-change`, `verify-change` and
-`archive-change`. Only these tested pairs exist: the plugin never guesses a syntax from an agent's
-name, and the skills must be installed for the agent you choose (`openspec init --tools claude` or
-`--tools codex`, or a global install). Agent and model are remembered **per workspace**.
+Pulse reads local workspace/store files, watches the selected roots and stores local preferences.
+For automatic consumption it also reads local agent usage metadata, matching sessions to selected
+workspace paths. It does not interpret conversation content or read account credentials.
+It can open files, create the ignored board marker, initialize OpenSpec, and link/unlink/create
+local stores after a preview and confirmation. Agent actions send reviewed prompts through Orca
+to your configured agent; that agent uses its own account and service.
 
-**Send to** offers *Automatic* (the default, as in 0.1.0: the idle session of that agent that has
-waited longest, else a new chat), *New session*, or one of the workspace's sessions of that agent.
-Only sessions at their prompt (state `done`) can be chosen; `working`, `waiting` and `blocked`
-ones are refused, and the worker checks again at send time (same workspace, same session, still
-idle). If the session changed, the delivery is refused or Orca does not confirm a new session in
-60 s, you get an error and **nothing is sent anywhere else**. A model only applies to a new
-Claude session (`orca agent launch --model`); an open session keeps its own, and Codex shows no
-model field. Buttons send a prompt to the agent; its behavior and approval requests follow your
-agent configuration.
+Optional PR queries contact **github.com through GitHub CLI** using the explicitly selected
+account. Without that configuration, local task browsing needs no GitHub connection. Pulse has
+no analytics or telemetry. Shared-store changes cannot launch agents or open store files for
+editing from the linked workspace.
 
-A workspace without `openspec/changes/` offers **Initialize OpenSpec**, which runs
-`openspec init --tools none --no-animation .` in the workspace root: it only creates `openspec/`
-(config, `specs/`, `changes/`), no agent files. The `openspec` CLI must be in `~/.local/bin`,
-`/opt/homebrew/bin`, `/usr/local/bin` or Orca's PATH.
+This project is independently maintained and is not affiliated with or endorsed by Orca,
+OpenSpec or the projects acknowledged below.
 
-## The status bar item
+## Acknowledgements
 
-It shows the `layers` icon and the number of active changes with their tasks, such as
-`2 changes · 5/12` (`2 changes` when none has tasks, `No changes` with only the archive). Its tone
-is `accent` while tasks are pending, `success` when all are done and `neutral` otherwise. The
-tooltip lists each change with its `done/total` or `no tasks`. It is hidden with no workspace, in
-SSH and WSL workspaces and without `openspec/changes/`, and it counts active changes only.
+Thank you to the authors and contributors whose OpenSpec plugins informed this project:
 
-It follows workspace switches and file changes with the panel closed: the worker keeps running
-while the plugin is enabled. Pressing it shows the panel in the right sidebar, opening the sidebar
-if it is closed (the worker runs `orca plugin open <key> --panel changes`; if that fails,
-`orca plugin logs local.openspec-pulse` says why).
+- **cmdaltctr**, [orca-plugin-openspec](https://github.com/cmdaltctr/orca-plugin-openspec)
+  ([MIT](https://github.com/cmdaltctr/orca-plugin-openspec/blob/36cd6fe6efe160a1316eb814881ada19f379e0f8/LICENSE)):
+  dependency ordering, sibling-worktree discovery and individual-task actions.
+- **Ilya Bazylchuk (IBazylchuk)**,
+  [orca-plugin-openspec-board](https://github.com/IBazylchuk/orca-plugin-openspec-board)
+  ([MIT](https://github.com/IBazylchuk/orca-plugin-openspec-board/blob/bb0b92422717f7666285380e6c931f2dc53e67cf/LICENSE)):
+  project-configured workflows and the separation of PR delivery from local task progress.
+- **jameslatajan**, [orca-openspec](https://github.com/jameslatajan/orca-openspec)
+  ([Apache-2.0](https://github.com/jameslatajan/orca-openspec/blob/6f714ae9755f4e4c9c3127414810ec7b625add87/LICENSE)):
+  sidebar plus board, spec/change relationships, agent selection and shared-store workflows.
 
-## What is in this folder
+These are acknowledgements of design inspiration. The project research records independent
+implementations rather than copied third-party source. Pinned revisions, license sources and
+the reuse policy are in [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
 
-- `orca-plugin.json`: what Orca loads. A `trusted-worker` manifest with one html panel, the status
-  bar item, the `openspec-pulse.showPanel` command and the `workspace.changed` event.
-- `src/worker.ts`: resolves the focused workspace, reads and watches `openspec/`, updates the
-  status bar, calls `editor.open` and starts agents. Sandboxed panels cannot read files, and only
-  workers may call `editor.open` and `statusBar.update`, which is why the worker exists.
-- `src/openspec.ts`: reads the changes, the archive and the specs from disk, counts checkboxes and
-  requirements, and finds each change's newest file. Plain Node, no Orca API.
-- `src/state.ts`: state, stepper, next step, action buttons, bar hue, strip counts, ages and the
-  status bar summary, plus the contrast check of the state colours. Pure, shared by panel and
-  worker.
-- `src/commands.ts`: the tested agent profiles, the command each action sends, model and
-  destination checks, and the plugin key to open the panel.
-- `src/protocol.ts`: the types panel and worker share (`changes.list`, `changes.detail`,
-  `changes.open`, `archive.list`, `archive.detail`, `specs.list`, `specs.open`, `agent.options`, `agent.prefs.set`, `agent.run`,
-  `openspec.init`, `changes.changed`).
-- `src/panel/`: the html panel, in TypeScript with no build step (Orca transpiles it). `main.ts`
-  holds the state, worker calls and redraws; `views.ts` the header, tabs, cards and lists;
-  `detail.ts` the detail of an active or archived change; `launch.ts` the command sheet; `dom.ts` the `h()` builder, which only
-  sets text through text nodes, and the icons; `model.ts` the state and action types; `text.ts`
-  the task text helpers and dates; `panel.css` the styles.
-- `openspec/`: the project's own OpenSpec specs and changes, and
-  [`docs/PROPUESTAS-DE-CAMBIO.md`](docs/PROPUESTAS-DE-CAMBIO.md), the order of the change proposals.
-- `fixtures/sample/`: a small OpenSpec workspace for trying the panel.
+Thanks also to [Fission-AI and the OpenSpec contributors](https://github.com/Fission-AI/OpenSpec)
+for OpenSpec, and [the Orca contributors](https://github.com/stablyai/orca) for the host platform.
 
-The agent buttons and the status bar press run Orca's own CLI (`orca agent launch --surface chat
---focus [--model <id>]` and `orca plugin open`, found inside Orca.app or on PATH): the host API cannot open a chat
-or a panel.
-
-## Develop
+## Develop and support
 
 ```sh
-npm install           # only TypeScript and @types/node, for type-checking
-npm run typecheck     # writes Orca's typings to .orca/types and runs tsc
-npm test              # orca plugin test .: the *.test.ts files under src/, in Node
-npm run validate      # orca plugin validate .
-npm run media:preview # local, reproducible gallery of the real panel with sample data
-orca plugin dev watch .   # loads the folder, prints logs and reloads on save
+npm ci
+npm run typecheck
+npm test
+npm run validate
+npm run media:preview
 ```
 
-While the folder is loaded:
+For a local checkout, add the folder in **Settings → Plugins → Development folders…**, or run
+`orca plugin dev load .` and review its approval request. Use
+`orca plugin open local.openspec-pulse` to show the development panel.
 
-```sh
-orca plugin dev request . changes.list                          # what the panel receives
-orca plugin dev request . archive.list                          # the Archive tab
-orca plugin dev request . specs.list                            # the Specs tab
-orca plugin dev request . changes.detail --data '{"name":"<change>"}'
-orca plugin shot local.openspec-pulse --theme light             # PNG of the panel in .orca/shots/
-orca plugin shot local.openspec-pulse --status-bar              # the status bar row
-orca plugin logs local.openspec-pulse
-```
-
-`orca plugin shot --theme` only applies with Orca's window hidden. `orca plugin check` renders
-components panels only, so the html panel is checked by eye with `orca plugin shot`; its logic lives
-in `src/state.ts` and `src/openspec.ts`, which `npm test` covers. The worker test runs the real
-`openspec init` when the CLI is installed.
-
-Panel and worker reload on save without a new approval; adding a capability, a command, an event or
-a status bar item asks again. Reference:
-[Orca plugin authoring](https://github.com/stablyai/orca/blob/main/docs/reference/plugin-authoring.md).
-
-## Publishing and support
-
-Release steps, marketplace metadata and image provenance are in
-[the publication guide](docs/PUBLISHING.md). Report bugs or request features in
-[GitHub Issues](https://github.com/Dos2Locos/openspec-pulse/issues), including the Orca and
-plugin versions and the relevant plugin logs (remove private paths and prompts first).
+Read the [publication guide](docs/PUBLISHING.md) and [release notes](docs/RELEASE-NOTES.md).
+Report problems in [GitHub Issues](https://github.com/Dos2Locos/openspec-pulse/issues), including
+Orca/plugin versions and relevant logs with private paths, prompts and credentials removed.
 
 Licensed under [MIT](LICENSE).

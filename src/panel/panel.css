@@ -500,6 +500,11 @@ html.dark .bar > span {
   padding: 0;
   color: var(--orca-muted-foreground);
 }
+.task .task-run {
+  display: block;
+  padding: 2px 0;
+  color: var(--orca-foreground);
+}
 .body-list {
   display: flex;
   flex-direction: column;
@@ -639,3 +644,100 @@ html.dark .bar > span {
 .load-more {
   align-self: center;
 }
+
+/* Dependency context uses host theme tokens in either appearance. */
+.ordering-control { display: flex; align-items: center; gap: 8px; color: var(--orca-muted-foreground); }
+.ordering-control select { color: var(--orca-foreground); background: var(--orca-card); border: 1px solid var(--orca-border); border-radius: 6px; padding: 5px; }
+.dependency-warning { font-size: 12px; overflow-wrap: anywhere; margin: 8px 0; color: var(--orca-foreground); }
+.group-heading { font-size: 12px; color: var(--orca-muted-foreground); margin: 12px 0 8px; }
+.favorite { margin-left: auto; }
+
+.dependency-context { margin: 8px 0; font-size: 12px; overflow-wrap: anywhere; }
+.dependency-context summary { cursor: pointer; color: var(--orca-muted-foreground); }
+.dependency-context ul { margin: 6px 0 0; padding-left: 18px; }
+.dependency-context li + li { margin-top: 4px; }
+
+/* Relation origins stay readable even in a narrow sidebar or with long archive folders. */
+.relations .body-list { display: grid; gap: 6px; }
+.relations .row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+.relations .row-name, .relations .row-meta, .spec-heading { white-space: normal; overflow-wrap: anywhere; }
+.relations p { font-size: 12px; }
+
+.spec-detail > h2, .spec-detail > p { margin: 0; }
+
+/* A compact toolbar control using the host's theme, with optional diagnostics kept folded. */
+.worktree-control { padding: 8px 12px; border-bottom: 1px solid var(--orca-border); }
+.worktree-picker { display: flex; align-items: center; gap: 6px; color: var(--orca-muted-foreground); }
+.worktree-picker select {
+  min-width: 0; width: 100%; padding: 5px 24px 5px 8px;
+  font: inherit; font-size: 12px; color: var(--orca-foreground);
+  background-color: var(--orca-background); border: 1px solid var(--orca-border);
+  border-radius: 6px; cursor: pointer;
+}
+.worktree-picker select:hover { background-color: var(--orca-muted); }
+.worktree-picker select:disabled { opacity: .6; cursor: default; }
+.worktree-diagnostics { margin: 6px 0 0 19px; font-size: 11px; color: var(--orca-muted-foreground); }
+.worktree-diagnostics summary { cursor: pointer; }
+.worktree-diagnostics p { margin: 6px 0; }
+.worktree-diagnostics ul { max-height: 120px; overflow: auto; margin: 6px 0; padding-left: 16px; }
+.worktree-diagnostics li { margin: 4px 0; overflow-wrap: anywhere; }
+.worktree-origin { display: block; font-size: 11px; color: var(--orca-muted-foreground); overflow-wrap: anywhere; }
+
+.workflow-consent { display: flex; align-items: flex-start; gap: 8px; }
+.workflow-consent input { flex: 0 0 auto; margin-top: 3px; }
+.workflow-resume { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Delivery is independent of the local lifecycle stripe and progress bar. */
+.delivery, .github-preferences { border-top: 1px solid var(--orca-border); padding-top: 8px; font-size: 12px; overflow-wrap: anywhere; }
+.delivery p, .github-preferences p { margin: 4px 0; }
+.delivery-heading { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.delivery-state { font-weight: 600; }
+.delivery a { color: var(--orca-foreground); text-decoration: underline; text-underline-offset: 2px; }
+.github-preferences { margin: 0 16px 8px; }
+.github-preferences summary { cursor: pointer; }
+.github-preferences form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.github-preferences input { min-width: 0; width: 150px; padding: 6px; color: var(--orca-foreground); background: var(--orca-background); border: 1px solid var(--orca-border); border-radius: 4px; }
+.delivery a:focus-visible { outline: 2px solid var(--orca-ring); outline-offset: 3px; }
+
+.artifact-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.files .artifact-row > button { width: auto; }
+.artifact-preview { border: 1px solid var(--orca-border); border-radius: var(--radius); padding: 12px; margin: 12px 0; }
+.preview-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.preview-toolbar h3 { flex: 1; overflow-wrap: anywhere; }
+.markdown { line-height: 1.65; overflow-wrap: anywhere; }
+.markdown pre { overflow-x: auto; white-space: pre; padding: 12px; background: var(--orca-muted); border-radius: var(--radius); }
+.markdown blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--orca-border); }
+.markdown .markdown-item { margin: 4px 0 4px 12px; }
+.markdown-link { color: var(--orca-primary); text-decoration: underline; border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; }
+
+/* Store management shares host colors and native keyboard controls. */
+.store-controls { margin: 8px 12px; padding: 8px; border: 1px solid var(--orca-border, #8886); border-radius: 6px; overflow-wrap: anywhere; }
+.store-controls p, .store-controls h3 { margin: 8px 0; }
+.store-forms { display: grid; gap: 8px; }
+.store-forms label { display: grid; gap: 4px; }
+.store-forms input, .store-forms select { width: 100%; min-width: 0; box-sizing: border-box; color: inherit; background: var(--orca-bg, transparent); border: 1px solid var(--orca-border, #8888); border-radius: 4px; padding: 6px; }
+.store-buttons, .store-preview { display: flex; flex-wrap: wrap; gap: 8px; }
+.store-preview h3, .store-preview ul { flex-basis: 100%; }
+
+/* Recorded project spend uses host theme tokens in both panel and board. */
+.spend { border: 1px solid var(--orca-border); border-radius: 6px; padding: 10px; margin-bottom: 12px; }
+.spend p { margin: 8px 0; overflow-wrap: anywhere; }
+.spend-total span { display: block; }
+.spend-groups { overflow-x: auto; margin-top: 8px; }
+.spend table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.spend caption { text-align: left; font-weight: 600; padding-bottom: 6px; }
+.spend th, .spend td { text-align: left; vertical-align: top; padding: 6px; border-bottom: 1px solid var(--orca-border); overflow-wrap: anywhere; max-width: 180px; }
+.spend select { max-width: 100%; }
+.spend section { border-top: 1px solid var(--orca-border); margin-top: 10px; padding-top: 8px; }
+
+.spend select { font: inherit; color: var(--orca-foreground); background: var(--orca-background); border: 1px solid var(--orca-border); border-radius: 4px; padding: 4px; }
+.automatic-usage a { color: var(--orca-foreground); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Tool tabs share the body width with lists, including narrow translated labels. */
+.tabs { flex-wrap: wrap; }
+.tab { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.body, .store-controls, .spend { min-width: 0; }
+.store-controls { margin: 0 0 12px; }
+.store-controls h2, .spend h2 { margin: 0 0 8px; font-size: 14px; overflow-wrap: anywhere; }
+.store-buttons button, .store-preview button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+body { font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }

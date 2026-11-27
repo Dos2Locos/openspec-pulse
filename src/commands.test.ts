@@ -8,6 +8,19 @@ test('builds the slash command for each action', () => {
   assert.deepEqual(buildPrompt('claude-skills', 'archive', { change: 'add-x', prompt: 'ignored' }), { prompt: '/openspec-archive-change add-x' })
 })
 
+test('scopes a task prompt to its change, section and position in both profiles', () => {
+  const task = { sectionTitle: 'Ship', text: 'duplicate `text`\n\u001b', section: 1, position: 2 }
+  for (const [profile, prefix] of [['claude-skills', '/'], ['codex-skills', '$']] as const) {
+    const built = buildPrompt(profile, 'task', { change: 'add-x', task })
+    assert.ok('prompt' in built)
+    assert.ok(built.prompt.startsWith(`${prefix}openspec-apply-change add-x\n`))
+    assert.ok(built.prompt.includes('Work ONLY on the selected task'))
+    assert.ok(built.prompt.includes('Do not implement other tasks or archive'))
+    assert.deepEqual(JSON.parse(built.prompt.split('\n').at(-1)!), { change: 'add-x', section: 2, sectionTitle: 'Ship', position: 3, task: 'duplicate `text`\n' })
+  }
+  assert.ok('error' in buildPrompt('claude-skills', 'task', { change: 'add-x' }))
+})
+
 test('refuses what cannot run', () => {
   assert.ok('error' in buildPrompt('claude-skills', 'propose', { prompt: '   ' }))
   assert.ok('error' in buildPrompt('claude-skills', 'verify', {}))

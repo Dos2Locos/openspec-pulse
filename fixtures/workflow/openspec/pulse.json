@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "requiredArtifacts": ["proposal.md", "design.md", "tasks.md", "specs/"],
+  "resumePrefixes": ["Next:", "Siguiente:"],
+  "commands": {
+    "apply": "/openspec-apply-change {change}",
+    "task": "/openspec-apply-change {change} -- selected task: {task}"
+  }
+}

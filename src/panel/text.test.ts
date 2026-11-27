@@ -1,3 +1,4 @@
+import { setLocale } from '../i18n'
 import { assert, test } from 'orca/testing'
 import { codeSegments, formatDate, summarize } from './text'
 
@@ -26,7 +27,10 @@ test('summarizes to the first sentence, ignoring numbering dots', () => {
   assert.ok(truncated && summary.endsWith('…') && summary.length <= 161)
 })
 
-test('formats an archive date with a fixed English month', () => {
-  assert.equal(formatDate('2026-11-26'), '26 Nov 2026')
-  assert.equal(formatDate('2026-01-05'), '5 Jan 2026')
+test('formats calendar dates in the effective UI locale without shifting the day', () => {
+  for (const locale of ['en', 'es-ES', 'zh-Hans'] as const) {
+    setLocale(locale)
+    for (const date of ['2026-11-26', '2026-01-05']) assert.equal(formatDate(date), new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(date + 'T00:00:00Z')))
+  }
+  setLocale('en')
 })

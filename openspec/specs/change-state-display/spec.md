@@ -8,12 +8,24 @@ panel, so the user can tell finished, moving, untouched and unplanned changes ap
 ## Requirements
 
 ### Requirement: Each change has one state
-The panel SHALL classify each active change as `drafting` (no tasks.md, or a tasks.md without
-checkboxes), `not started` (0 done), `in progress` (some done) or `done` (all done).
+
+Each active change SHALL be `drafting` without task checkboxes, `not started` at 0 done,
+`in progress` with some done, or `done` with all done. Any missing artifact in an explicitly
+configured, validated requiredArtifacts list SHALL override the task state to `drafting`
+and be named; otherwise task-based rules SHALL apply. GitHub delivery SHALL remain separate
+and SHALL NOT mark tasks or archive changes automatically.
 
 #### Scenario: Classification
-- **WHEN** the changes have no tasks.md, 0/4, 2/4 and 4/4 tasks
-- **THEN** their states are `drafting`, `not started`, `in progress` and `done`
+- **WHEN** no requiredArtifacts list is configured and changes have no tasks.md, 0/4, 2/4 and 4/4 tasks
+- **THEN** their states remain drafting, not started, in progress and done
+
+#### Scenario: Configured artifact missing
+- **WHEN** design.md is explicitly required but absent and tasks are 4/4
+- **THEN** the local state is drafting and design.md is named as missing
+
+#### Scenario: Required artifacts present
+- **WHEN** all configured required artifacts exist and tasks are 2/4
+- **THEN** the local state is in progress
 
 ### Requirement: State colours follow Orca's theme
 Each state SHALL have one colour that is legible in Orca's light and dark themes. `in progress`
@@ -56,13 +68,23 @@ from its share done, on a scale from red at 0% through orange and yellow to gree
 - **THEN** their fills are red, orange, yellow, yellow-green and green
 
 ### Requirement: Changes show and sort by recency
+
 Each card SHALL show how long ago a file in the change's folder was last modified, such as
-`edited 5 min ago`, kept current while the panel is open. The list SHALL be ordered from the most
-recently edited change down.
+`edited 5 min ago`, kept current while the panel is open. The default list order SHALL be most
+recently edited first. The user MAY select dependency order instead and mark local favorites;
+favorites SHALL form a separate leading group without hiding dependency or cycle warnings.
 
 #### Scenario: Order
-- **WHEN** `a` was edited 2 hours ago and `b` 5 minutes ago
-- **THEN** `b` is listed before `a`, and `b` reads `edited 5 min ago`
+- **WHEN** no ordering preference exists and `a` was edited 2 hours ago and `b` 5 minutes ago
+- **THEN** `b` is listed before `a` and reads `edited 5 min ago`
+
+#### Scenario: Dependency order
+- **WHEN** dependency order is selected and `b` depends on `a`
+- **THEN** the unpinned list places `a` before `b` regardless of recency and both keep their ages
+
+#### Scenario: Favorite with a dependency
+- **WHEN** a dependent change is marked as a local favorite
+- **THEN** it appears in the favorites group with its dependency warning still visible
 
 ### Requirement: Plugin header
 The panel SHALL start with a header that stays in the list and detail views. Its first line holds

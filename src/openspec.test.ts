@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { assert, test } from 'orca/testing'
-import { countArchive, countSpecs, countTasks, fileToOpen, openableFiles, parseSpec, parseTasks, readArchive, readArchivedDetail, readChangeDetail, readChanges, readSpecList, specCapabilities } from './openspec'
+import { countArchive, countSpecs, countTasks, fileToOpen, openableFiles, parseSpec, parseTasks, readArchive, readArchivedDetail, readChangeDetail, readChanges, readSpecList, resolveTask, specCapabilities } from './openspec'
 
 test('counts checked and unchecked boxes', () => {
   const md = '## 1\n- [x] a\n- [ ] b\n  - [X] nested\n* [ ] star\ntext - [x] inline is ignored\n'
@@ -31,7 +31,7 @@ test('reads active changes, skips archive and reports artifacts', async () => {
   await utimes(join(changes, 'add-b', 'specs', 'x', 'spec.md'), newest, newest)
 
   const result = await readChanges(root)
-  assert.deepEqual(result, [
+  assert.deepEqual(result?.map(({ ordering, ...change }) => change), [
     { name: 'add-a', artifacts: ['proposal.md', 'design.md'], tasks: null, updatedAt: newest.getTime() },
     { name: 'add-b', artifacts: ['proposal.md', 'tasks.md', 'specs/'], tasks: { done: 1, total: 3 }, updatedAt: newest.getTime() }
   ])
@@ -53,6 +53,30 @@ test('groups tasks under their headings', () => {
   ])
 })
 
+test('resolves duplicate tasks by section and position, bound to the exact file and root', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'openspec-pulse-tasks-'))
+  const dir = join(root, 'openspec', 'changes', 'add-x')
+  await mkdir(dir, { recursive: true })
+  const markdown = '## Same\n- [ ] duplicate\n- [ ] duplicate\n## Same\n- [ ] duplicate\n- [x] done\n'
+  await writeFile(join(dir, 'tasks.md'), markdown)
+  const detail = await readChangeDetail(root, 'add-x')
+  const selection = { section: 1, position: 0, fingerprint: detail!.tasksFingerprint! }
+  assert.deepEqual(resolveTask(detail, selection), { sectionTitle: 'Same', text: 'duplicate', section: 1, position: 0 })
+  assert.deepEqual(resolveTask(detail, { ...selection, section: 0, position: 1 }), { sectionTitle: 'Same', text: 'duplicate', section: 0, position: 1 })
+  for (const invalid of [{ section: -1 }, { position: 0.5 }, { position: 2 }, { position: 1 }, { fingerprint: '' }]) {
+    assert.equal(resolveTask(detail, { ...selection, ...invalid }), null)
+  }
+  assert.equal(resolveTask(null, selection), null)
+  for (const updated of [markdown + '\n', markdown.replace('## Same', '## Moved'), markdown.replace('- [ ] duplicate', '- [x] duplicate'), '- [ ] duplicate\n']) {
+    await writeFile(join(dir, 'tasks.md'), updated)
+    assert.equal(resolveTask(await readChangeDetail(root, 'add-x'), selection), null)
+  }
+  const other = await mkdtemp(join(tmpdir(), 'openspec-pulse-tasks-'))
+  await mkdir(join(other, 'openspec', 'changes', 'add-x'), { recursive: true })
+  await writeFile(join(other, 'openspec', 'changes', 'add-x', 'tasks.md'), markdown)
+  assert.equal(resolveTask(await readChangeDetail(other, 'add-x'), selection), null)
+})
+
 test('reads a change detail with specs and refuses unknown names', async () => {
   const root = await mkdtemp(join(tmpdir(), 'openspec-pulse-'))
   const change = join(root, 'openspec', 'changes', 'add-x')
@@ -65,7 +89,9 @@ test('reads a change detail with specs and refuses unknown names', async () => {
   const detail = await readChangeDetail(root, 'add-x')
   assert.ok(detail && detail.updatedAt > 0)
   assert.deepEqual(detail, {
+    ordering: detail.ordering,
     updatedAt: detail.updatedAt,
+    tasksFingerprint: detail.tasksFingerprint,
     name: 'add-x',
     artifacts: ['tasks.md', 'specs/'],
     tasks: { done: 1, total: 2 },
@@ -122,4 +148,38 @@ test('lists main specs, nested paths included', async () => {
   assert.equal(await countSpecs(root), 2)
   assert.deepEqual(await specCapabilities(await mkdtemp(join(tmpdir(), 'openspec-pulse-'))), [])
   assert.deepEqual(parseSpec('## Purpose\n## Requirements\n'), { purpose: null, requirements: 0 })
+})
+
+
+test('reads dependency metadata and refreshes edits without rewriting project files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pulse-ordering-'))
+  const dir = join(root, 'openspec', 'changes', 'dependent')
+  await mkdir(dir, { recursive: true })
+  await mkdir(join(root, 'openspec', 'changes', 'archive', '2026-01-01-base'), { recursive: true })
+  await writeFile(join(dir, 'proposal.md'), 'Depende de: `base`, `missing`')
+  const yaml = 'schema: spec-driven\ncreated: 2026-01-02\norder: 2\n'
+  await writeFile(join(dir, '.openspec.yaml'), yaml)
+  const first = (await readChanges(root))![0].ordering!
+  assert.deepEqual(first.dependencies, ['base', 'missing'])
+  assert.deepEqual(first.satisfied, ['base'])
+  assert.equal(first.createdAt, Date.parse('2026-01-02'))
+  assert.equal(first.order, 2)
+  await writeFile(join(dir, 'proposal.md'), 'Dependencies: `different`')
+  await writeFile(join(dir, '.openspec.yaml'), 'order: wrong')
+  const next = (await readChanges(root))![0].ordering!
+  assert.deepEqual(next.dependencies, ['different'])
+  assert.equal(next.order, null)
+  assert.ok(next.warnings.length > 0)
+})
+
+test('detail and main specs share full capability paths beyond three folders', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'openspec-pulse-deep-'))
+  const capability = 'billing/invoices/domestic/standard'
+  for (const base of ['changes/add-x/specs', 'specs']) {
+    const dir = join(root, 'openspec', base, capability)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'spec.md'), '# Spec')
+  }
+  assert.deepEqual((await readChangeDetail(root, 'add-x'))?.specs, [`specs/${capability}/spec.md`])
+  assert.deepEqual(await specCapabilities(root), [capability])
 })

@@ -1,0 +1,7 @@
+{
+  "stores": [
+    { "id": "shared", "root": "/fixture/shared" },
+    { "id": "other", "root": "/fixture/other" }
+  ],
+  "status": []
+}

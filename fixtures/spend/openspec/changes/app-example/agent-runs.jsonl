@@ -1,0 +1,5 @@
+{"id":"run-001","at":"2026-11-27T09:00:00Z","task":"2.1","model":"example-model","costUsd":0.12,"inputTokens":1500,"outputTokens":300}
+{"id":"tokens-only","inputTokens":120,"outputTokens":20}
+{"id":"zero","costUsd":0,"model":"example-model","at":"2026-11-26T10:00:00Z"}
+not-json
+{"costUsd":-1}

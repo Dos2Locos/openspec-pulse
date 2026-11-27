@@ -1,0 +1,3 @@
+{"id":"run-001","at":"2026-11-27T09:00:00Z","task":"2.1","model":"example-model","costUsd":0.12,"inputTokens":1500,"outputTokens":300}
+{"id":"unassigned","at":"invalid","costUsd":0.08,"model":"example-model","inputTokens":200}
+{"id":"unassigned","costUsd":9}

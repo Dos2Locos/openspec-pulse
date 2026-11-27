@@ -4,6 +4,17 @@ Prepared for the [Orca community directory](https://orca.dev/plugins/add).
 The directory lists tagged releases, not the current default branch. This guide prepares
 publication; running the publishing commands below makes the plugin public in the directory.
 
+## Current release preparation
+
+The release version is **0.2.0**, consistently declared in the manifest, package and lockfile.
+The existing `v0.1.0` tag is preserved. [Release notes](RELEASE-NOTES.md) describe all completed
+work, including automatic agent usage, dedicated Stores/Spend tabs and three-language UI.
+The [usage guide](USAGE.md) holds the detailed feature manual.
+
+Completed changes through `separate-stores-and-spend-tabs` are included. Its 15 tracked tasks
+are complete and its verification report is included; OpenSpec archival is independent of
+publishing this tested implementation.
+
 ## Listing
 
 | Field | Value |
@@ -12,10 +23,10 @@ publication; running the publishing commands below makes the plugin public in th
 | Name | OpenSpec Pulse |
 | Plugin ID | `openspec-pulse` |
 | Publisher / installed key | `dos2locos` / `dos2locos.openspec-pulse` (local folders use `local.openspec-pulse`) |
-| Version / tag | `0.1.0` / `v0.1.0` |
+| Version / tag | `0.2.0` / `v0.2.0` |
 | Requires | Orca desktop `>=1.4.259`, local workspace |
 | License | MIT |
-| Description | Track OpenSpec changes, task progress, archived proposals and specs in Orca's sidebar. Continue the next step with Claude Code. |
+| Description | Track OpenSpec changes, tasks, specs and shared stores in Orca's sidebar and board. Review agent commands and local Claude/Codex usage, in English, Spanish or Simplified Chinese. |
 | Support | <https://github.com/Dos2Locos/openspec-pulse/issues> |
 | Listing status | <https://orca.dev/plugins/Dos2Locos/openspec-pulse> |
 
@@ -32,8 +43,8 @@ committed with the release. Orca copies them from the tagged repository.
 | File | Size | Purpose |
 | --- | --- | --- |
 | `media/cover.jpg` | 1600×1000 | Cover, 16:10 |
-| `media/workflow-light.png` | 1600×1000 | Active change list and task detail, light theme |
-| `media/workflow-dark.png` | 1600×1000 | Active change list and task detail, dark theme |
+| `media/workflow-light.png` | 1600×1000 | Active change list, artifacts and related changes, light theme |
+| `media/workflow-dark.png` | 1600×1000 | Active change list, artifacts and related changes, dark theme |
 | `media/archive-specs.png` | 1600×1000 | Archive and shared specs |
 
 The gallery captures the **shipping panel modules and CSS** in a browser, with a small sample
@@ -60,8 +71,12 @@ In Orca's browser, apply `orca viewport --page <id> --width 1600 --height 1000` 
 each navigation**. Retina captures may still be 3200×2000 physical pixels; downsample them
 to 1600×1000 before submission (for example with macOS `sips -z 1000 1600 <file.png>`).
 
-The server binds only to `127.0.0.1:4177`. Stop it with Ctrl+C after capture.
+The server binds only to `127.0.0.1:4177` by default (`PULSE_PREVIEW_PORT` overrides the port). Stop it with Ctrl+C after capture.
 Review every PNG: no clipped tasks, loading messages, errors or private workspace data.
+
+The gallery was regenerated and reviewed against the 0.2.0 release checkout. It
+covers the sidebar only; do not describe it as a board/store screenshot.
+Keep its captions accurate and add board/store captures to the manifest only after review.
 
 The cover was generated with the built-in `imagegen` tool and exported as JPEG at 1600×1000.
 Prompt:
@@ -78,6 +93,11 @@ Prompt:
 > no watermarks. Sophisticated, calm, highly legible thumbnail.
 
 ## Validate before tagging
+
+Review [ACKNOWLEDGEMENTS.md](../ACKNOWLEDGEMENTS.md) against the release diff. If external
+source/assets were incorporated, include their actual license/copyright and applicable NOTICE
+files, with origin and modification records. Design acknowledgements alone do not satisfy
+source redistribution conditions. The current provenance notes record independent implementations.
 
 ```sh
 npm ci
@@ -102,16 +122,22 @@ Images are allowed. Confirm all four listing images are tracked in the tagged co
 
 ## Publish when ready
 
-1. Commit the prepared files and push the commit to `origin`. The manifest and package
-   version must both be `0.1.0`. Confirm the working tree is clean.
+1. Verify that Git commits and authenticated GitHub operations use **temperatio** before any
+   commit, push, release or repository edit. Do not use another globally active account.
+   Prepare a release commit containing only completed work, documentation and reviewed media.
+   Update `orca-plugin.json`, `package.json` and both root version entries in `package-lock.json`
+   to the final version (`0.2.0`). Move the completed `Unreleased` entries in
+   `CHANGELOG.md` under that version and date. Run the checks above against that exact checkout,
+   commit and push to `origin`. Confirm the working tree is clean.
 2. Create and push the version tag for that exact commit:
 
    ```sh
-   git tag -a v0.1.0 -m 'OpenSpec Pulse 0.1.0'
-   git push origin v0.1.0
+   git tag -a v0.2.0 -m 'OpenSpec Pulse 0.2.0'
+   git push origin v0.2.0
    ```
 
-3. Enable discovery:
+3. Using the verified account, publish the GitHub release for the same tag with the reviewed body from `docs/RELEASE-NOTES.md`.
+   Enable directory discovery if the topic is not already present:
 
    ```sh
    gh repo edit Dos2Locos/openspec-pulse --add-topic orca-plugin
@@ -122,5 +148,8 @@ Images are allowed. Confirm all four listing images are tracked in the tagged co
    there. The initial listing is **Community · unreviewed**; do not describe it as official.
 5. Install the tagged release in Orca and verify the cover, screenshots and README links.
 
-For later releases, update both version fields, commit all changes and push a new `vX.Y.Z`
+For later releases, update the manifest, package and lockfile versions, commit all changes and push a new `vX.Y.Z`
 tag. Pushing a new commit without a new version tag does not update the marketplace release.
+
+Directory requirements were checked against [Orca's publication instructions](https://orca.dev/plugins/add)
+on 27 November 2026. Publication, tags and repository edits are not performed by preparing these files.

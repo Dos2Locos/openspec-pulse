@@ -1,0 +1,8 @@
+# Preserve project context and comments on link/unlink.
+schema: spec-driven
+store: shared # shared planning
+context: |
+  Project context stays here.
+rules:
+  proposal:
+    - Keep this rule.

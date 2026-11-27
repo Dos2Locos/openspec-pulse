@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "runs": {
+    "file": "agent-runs.jsonl",
+    "folders": [
+      "metrics/agent-runs"
+    ]
+  }
+}

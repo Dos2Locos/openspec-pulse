@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n'
 // Presentation helpers for task text. Pure functions, shared by the panel and its tests.
 
 const SUMMARY_MAX_CHARS = 160
@@ -29,10 +30,9 @@ export function summarize(text: string): { summary: string; truncated: boolean }
   return { summary: `${text.slice(0, cut > 0 ? cut : SUMMARY_MAX_CHARS)}…`, truncated: true }
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/** `2026-11-26` as `26 Nov 2026`; fixed English abbreviations like the rest of the panel. */
+/** Calendar dates retain their date across timezones. */
 export function formatDate(date: string): string {
-  const [year, month, day] = date.split('-')
-  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`
+  const instant = new Date(date + 'T00:00:00Z')
+  if (!Number.isFinite(instant.getTime())) return date
+  return new Intl.DateTimeFormat(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(instant)
 }

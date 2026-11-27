@@ -1,16 +1,18 @@
+import { readWorkflow } from './config-reader'
+import { resumeParagraph, type WorkflowInfo } from './config'
 // Reads the active OpenSpec changes of a workspace from disk. Pure Node, no Orca API.
+import { parseDependencies, parseManualOrder } from './ordering'
 import type { Dirent } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { join } from 'node:path'
-import type { ArchivedChange, ArchivedChangeDetail, Artifact, Change, ChangeDetail, SpecSummary, TaskCount, TaskSection } from './protocol'
+import { join, resolve } from 'node:path'
+import type { ArchivedChange, ArchivedChangeDetail, Artifact, Change, ChangeDetail, ChangeRef, SpecSummary, TaskContext, TaskCount, TaskSection, TaskSelection } from './protocol'
 
 export const CHANGES_DIR = join('openspec', 'changes')
 export const ARCHIVE_DIR = join(CHANGES_DIR, 'archive')
 export const SPECS_DIR = join('openspec', 'specs')
 const ARCHIVE = 'archive'
 const ARCHIVE_PREFIX = /^(\d{4}-\d{2}-\d{2})-(.+)$/
-// shortcut: capability paths deeper than 3 folders are not listed; raise it if a project needs more.
-const SPEC_DEPTH = 3
 const ARTIFACT_FILES: readonly Artifact[] = ['proposal.md', 'design.md', 'tasks.md']
 // [ \t] instead of \s: \s crosses lines.
 const TASK_LINE = /^[ \t]*[-*+][ \t]+\[([ xX])\][ \t]*(.*)$/
@@ -41,8 +43,20 @@ export function countTasks(markdown: string): TaskCount {
   return countSections(parseTasks(markdown))
 }
 
-async function readTasks(dir: string, files: Set<string>): Promise<TaskSection[] | null> {
-  return files.has('tasks.md') ? parseTasks(await readFile(join(dir, 'tasks.md'), 'utf8')) : null
+async function readTasks(dir: string, files: Set<string>, workflow?: WorkflowInfo): Promise<{ sections: TaskSection[]; tasksFingerprint: string; resume?: string | null } | null> {
+  if (!files.has('tasks.md')) return null
+  const markdown = await readFile(join(dir, 'tasks.md'), 'utf8')
+  return { ...(workflow?.config?.resumePrefixes ? { resume: resumeParagraph(markdown, workflow.config.resumePrefixes) } : {}), sections: parseTasks(markdown), tasksFingerprint: createHash('sha256').update(resolve(dir)).update('\0').update(markdown).digest('hex') }
+}
+
+/** A stale, malformed, missing or completed selection never resolves to another task. */
+export function resolveTask(detail: ChangeDetail | null, selection: TaskSelection | undefined): TaskContext | null {
+  if (!detail || !selection || !detail.tasksFingerprint || selection.fingerprint !== detail.tasksFingerprint ||
+      !Number.isSafeInteger(selection.section) || selection.section < 0 ||
+      !Number.isSafeInteger(selection.position) || selection.position < 0) return null
+  const section = detail.sections[selection.section]
+  const task = section?.tasks[selection.position]
+  return task && !task.done ? { sectionTitle: section.title, text: task.text, section: selection.section, position: selection.position } : null
 }
 
 /** Newest `mtimeMs` of the files under `dir`; 0 when it has none. */
@@ -54,14 +68,27 @@ async function newestMtime(dir: string): Promise<number> {
   return Math.max(0, ...times)
 }
 
-async function readChange(changesDir: string, name: string): Promise<Change & { sections: TaskSection[] | null }> {
+async function readChange(changesDir: string, name: string, workflow?: WorkflowInfo): Promise<Change & { sections: TaskSection[] | null; tasksFingerprint?: string }> {
   const dir = join(changesDir, name)
   const entries = await readdir(dir, { withFileTypes: true })
   const files = new Set(entries.filter((e) => e.isFile()).map((e) => e.name))
   const artifacts: Artifact[] = ARTIFACT_FILES.filter((file) => files.has(file))
   if (entries.some((e) => e.isDirectory() && e.name === 'specs')) artifacts.push('specs/')
-  const [sections, updatedAt] = await Promise.all([readTasks(dir, files), newestMtime(dir)])
-  return { name, artifacts, tasks: sections && countSections(sections), updatedAt, sections }
+  const [snapshot, updatedAt, info, proposal, yaml] = await Promise.all([
+    readTasks(dir, files, workflow), newestMtime(dir), stat(dir),
+    files.has('proposal.md') ? readFile(join(dir, 'proposal.md'), 'utf8') : '',
+    files.has('.openspec.yaml') ? readFile(join(dir, '.openspec.yaml'), 'utf8') : ''
+  ])
+  const manual = parseManualOrder(yaml)
+  const created = /^created:\s*['"]?(\d{4}-\d{2}-\d{2})['"]?\s*$/m.exec(yaml)?.[1]
+  const parsedDate = created ? Date.parse(created) : NaN
+  const ordering = { dependencies: parseDependencies(proposal), satisfied: [] as string[],
+    createdAt: Number.isFinite(parsedDate) ? parsedDate : info.birthtimeMs, order: manual.order,
+    warnings: manual.warning ? [manual.warning] : [] }
+  return { name, ordering, artifacts,
+    ...(workflow?.config?.requiredArtifacts ? { missingArtifacts: workflow.config.requiredArtifacts.filter(a => !artifacts.includes(a)) } : {}),
+    ...(snapshot?.resume !== undefined ? { resume: snapshot.resume } : {}), tasks: snapshot && countSections(snapshot.sections), updatedAt, sections: snapshot?.sections ?? null,
+    ...(snapshot ? { tasksFingerprint: snapshot.tasksFingerprint } : {}) }
 }
 
 /** `readdir` that answers null for a missing folder and still throws any other error. */
@@ -103,23 +130,16 @@ export async function readChanges(root: string): Promise<Change[] | null> {
   const changesDir = join(root, CHANGES_DIR)
   const names = await activeNames(changesDir)
   if (!names) return null
-  const changes = await Promise.all(names.map((name) => readChange(changesDir, name)))
-  return changes.map(({ name, artifacts, tasks, updatedAt }) => ({ name, artifacts, tasks, updatedAt }))
+  const workflow = await readWorkflow(root)
+  const changes = await Promise.all(names.map((name) => readChange(changesDir, name, workflow)))
+  const archived = (await archiveFolders(root)).map(folder => splitFolder(folder).name)
+  return changes.map(({ sections, tasksFingerprint, ...change }) => ({ ...change,
+    ordering: { ...change.ordering!, satisfied: change.ordering!.dependencies.filter(d => archived.includes(d)) } }))
 }
 
 /** `specs/<capability>/spec.md` of every capability folder that has one. */
 async function readSpecs(changeDir: string): Promise<string[]> {
-  const specsDir = join(changeDir, 'specs')
-  const capabilities = await readdir(specsDir, { withFileTypes: true }).catch(() => [])
-  const specs = await Promise.all(
-    capabilities
-      .filter((e) => e.isDirectory())
-      .map(async (e) => {
-        const files = await readdir(join(specsDir, e.name))
-        return files.includes('spec.md') ? `specs/${e.name}/spec.md` : null
-      })
-  )
-  return specs.filter((spec): spec is string => spec !== null).sort()
+  return (await walkSpecs(join(changeDir, 'specs'), '')).sort().map(capability => `specs/${capability}/spec.md`)
 }
 
 /**
@@ -129,7 +149,7 @@ async function readSpecs(changeDir: string): Promise<string[]> {
 export async function readChangeDetail(root: string, name: string): Promise<ChangeDetail | null> {
   const changesDir = join(root, CHANGES_DIR)
   if (!(await activeNames(changesDir))?.includes(name)) return null
-  const change = await readChange(changesDir, name)
+  const change = await readChange(changesDir, name, await readWorkflow(root))
   return { ...change, sections: change.sections ?? [], specs: await readSpecs(join(changesDir, name)) }
 }
 
@@ -163,21 +183,20 @@ export async function readArchivedDetail(root: string, folder: string): Promise<
   }
 }
 
-async function walkSpecs(dir: string, prefix: string, depth: number): Promise<string[]> {
+async function walkSpecs(dir: string, prefix: string): Promise<string[]> {
   const entries = (await readdirIfExists(dir)) ?? []
   const own = prefix && entries.some((e) => e.isFile() && e.name === 'spec.md') ? [prefix] : []
-  if (depth === 0) return own
   const nested = await Promise.all(
     entries
       .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-      .map((e) => walkSpecs(join(dir, e.name), prefix ? `${prefix}/${e.name}` : e.name, depth - 1))
+      .map((e) => walkSpecs(join(dir, e.name), prefix ? `${prefix}/${e.name}` : e.name))
   )
   return [...own, ...nested.flat()]
 }
 
 /** Capability folders of `openspec/specs/` that hold a spec.md, sorted; the only names `specs.open` accepts. */
 export async function specCapabilities(root: string): Promise<string[]> {
-  return (await walkSpecs(join(root, SPECS_DIR), '', SPEC_DEPTH)).sort()
+  return (await walkSpecs(join(root, SPECS_DIR), '')).sort()
 }
 
 export const countSpecs = async (root: string): Promise<number> => (await specCapabilities(root)).length
@@ -212,4 +231,18 @@ export function fileToOpen(change: Change): string | null {
   if (change.artifacts.includes('tasks.md')) return 'tasks.md'
   if (change.artifacts.includes('proposal.md')) return 'proposal.md'
   return null
+}
+
+/** Read just delta paths, sharing the same capability walker as detail and main specs. */
+export async function readRelationEntries(root: string): Promise<{ change: ChangeRef; capabilities: string[] }[]> {
+  const active = await activeNames(join(root, CHANGES_DIR)) ?? []
+  const archived = await archiveFolders(root)
+  const refs: ChangeRef[] = [
+    ...active.map(name => ({ source: 'active' as const, name })),
+    ...archived.map(folder => ({ source: 'archive' as const, name: splitFolder(folder).name, folder }))
+  ]
+  return Promise.all(refs.map(async change => ({ change,
+    capabilities: await walkSpecs(join(root, change.source === 'archive' ? ARCHIVE_DIR : CHANGES_DIR,
+      change.source === 'archive' ? change.folder : change.name, 'specs'), '')
+  })))
 }

@@ -107,20 +107,20 @@ test('summarises the workspace for the status bar', () => {
   const ok = (changes: Change[]) => statusBarSummary({ status: 'ok', workspace: 'repo', changes, archived: 0, specs: 0 })
   assert.deepEqual(ok([change('a', ALL, [3, 7]), change('b', ALL, [2, 5])]), {
     visible: true,
-    text: '2 changes · 5/12',
+    text: 'OpenSpec · 2 · 5/12',
     tone: 'accent',
     tooltip: 'OpenSpec · repo\na 3/7\nb 2/5'
   })
   const one = ok([change('a', ALL, [1, 4])])
-  assert.equal(one.visible && one.text, '1 change · 1/4')
+  assert.equal(one.visible && one.text, 'OpenSpec · 1 · 1/4')
   const done = ok([change('a', ALL, [12, 12])])
   assert.equal(done.visible && done.tone, 'success')
   const noTasks = ok([change('a', ['proposal.md']), change('b', ['proposal.md'])])
-  assert.equal(noTasks.visible && `${noTasks.text} ${noTasks.tone}`, '2 changes neutral')
+  assert.equal(noTasks.visible && `${noTasks.text} ${noTasks.tone}`, 'OpenSpec · 2 neutral')
   const none = ok([])
-  assert.equal(none.visible && `${none.text} ${none.tone}`, 'No changes neutral')
+  assert.equal(none.visible && `${none.text} ${none.tone}`, 'OpenSpec · 0 neutral')
   const tooltip = ok([change('add-x', ALL, [1, 2]), change('fix-y', ['proposal.md'])])
-  assert.equal(tooltip.visible && tooltip.tooltip, 'OpenSpec · repo\nadd-x 1/2\nfix-y no tasks')
+  assert.equal(tooltip.visible && tooltip.tooltip, 'OpenSpec · repo\nadd-x 1/2\nfix-y —')
 })
 
 test('ends a long tooltip with +N more instead of cutting a line', () => {
@@ -130,7 +130,7 @@ test('ends a long tooltip with +N more instead of cutting a line', () => {
   assert.ok(summary.tooltip.length <= TOOLTIP_MAX_CHARS, `${summary.tooltip.length} chars`)
   const lines = summary.tooltip.split('\n')
   const shown = lines.length - 2 // the heading and +N more
-  assert.equal(lines.at(-1), `+${30 - shown} more`)
+  assert.equal(lines.at(-1), `+${30 - shown}`)
   assert.ok(lines.slice(1, -1).every((line) => /^change-number-\d\d 1\/2$/.test(line)))
 })
 

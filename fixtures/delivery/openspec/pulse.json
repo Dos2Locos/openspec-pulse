@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "tickets": [{ "prefix": "FAM", "url": "https://tracker.example.com/browse/{ticket}" }],
+  "github": { "repositories": ["example/project"], "match": "ticket-in-title" }
+}

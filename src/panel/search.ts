@@ -26,14 +26,14 @@ export function filterActive(
 ): Change[] {
   return [...changes]
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .filter((c) => (filter ? stateOf(c) === filter : true) && matches(query, c.name))
+    .filter((c) => (filter ? stateOf(c) === filter : true) && matches(query, c.name, c.origin?.name, c.origin?.branch))
 }
 
 export const filterArchive = (items: readonly ArchivedChange[], query: string): ArchivedChange[] =>
-  items.filter((c) => matches(query, c.name))
+  items.filter((c) => matches(query, c.name, c.origin?.name, c.origin?.branch))
 
 export const filterSpecs = (items: readonly SpecSummary[], query: string): SpecSummary[] =>
-  items.filter((s) => matches(query, s.capability, s.purpose))
+  items.filter((s) => matches(query, s.capability, s.purpose, s.origin?.name, s.origin?.branch))
 
 /** The first `limit` items (at least one page) and how many are left. */
 export function page<T>(items: readonly T[], limit: number): { shown: T[]; remaining: number } {

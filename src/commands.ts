@@ -1,5 +1,7 @@
+import { t } from './i18n'
+import type { WorkflowConfig } from './config'
 // Builds the first prompt of the agent the panel starts. Pure, no Orca API.
-import type { AgentAction, AgentPrefs, AgentTarget, ProfileId, ProfileInfo, SessionInfo } from './protocol'
+import type { AgentAction, AgentPrefs, AgentTarget, ProfileId, ProfileInfo, SessionInfo, TaskContext } from './protocol'
 
 export const DEFAULT_PROFILE: ProfileId = 'claude-skills'
 
@@ -18,11 +20,12 @@ const SKILLS: Record<AgentAction, string> = {
   explore: 'openspec-explore',
   continue: 'openspec-continue-change',
   apply: 'openspec-apply-change',
+  task: 'openspec-apply-change',
   verify: 'openspec-verify-change',
   archive: 'openspec-archive-change'
 }
 /** Actions on an existing change; the others take free text. */
-const CHANGE_ACTIONS: readonly AgentAction[] = ['continue', 'apply', 'verify', 'archive']
+const CHANGE_ACTIONS: readonly AgentAction[] = ['continue', 'apply', 'verify', 'archive', 'task']
 export const PROMPT_MAX_CHARS = 4000
 /**
  * Change names become part of the agent's prompt and come from folder names a cloned repository
@@ -46,7 +49,11 @@ export function isProfileId(value: unknown): value is ProfileId {
 
 export function profileInfo(id: ProfileId): ProfileInfo {
   const { prefix: _prefix, ...info } = PROFILES[id]
-  return info
+  return { ...info, label: profileLabel(info) }
+}
+
+export function profileLabel(profile: ProfileInfo): string {
+  return `${profile.agent === 'claude' ? 'Claude Code' : 'Codex'} · ${t('skills')}`
 }
 
 export const listProfiles = (): ProfileInfo[] => (Object.keys(PROFILES) as ProfileId[]).map(profileInfo)
@@ -60,8 +67,8 @@ const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,63}$/
  */
 export function checkModel(profile: ProfileId, model: unknown): { model: string | null } | { error: string } {
   if (model === null || model === undefined || model === '') return { model: null }
-  if (typeof model !== 'string' || !SAFE_MODEL.test(model.trim())) return { error: 'The model id has characters models do not use.' }
-  if (!PROFILES[profile].supportsModel) return { error: `${PROFILES[profile].label} cannot choose a model.` }
+  if (typeof model !== 'string' || !SAFE_MODEL.test(model.trim())) return { error: t("The model id has characters models do not use.") }
+  if (!PROFILES[profile].supportsModel) return { error: t("{p0} cannot choose a model.", { p0: profileInfo(profile).label }) }
   return { model: model.trim() }
 }
 
@@ -84,19 +91,27 @@ export function isChangeAction(action: AgentAction): boolean {
 export function buildPrompt(
   profile: ProfileId,
   action: AgentAction,
-  input: { change?: string; prompt?: string }
+  input: { change?: string; prompt?: string; task?: TaskContext },
+  workflow?: WorkflowConfig | null
 ): { prompt: string } | { error: string } {
-  if (!isProfileId(profile)) return { error: `Unknown profile ${String(profile)}.` }
+  if (!isProfileId(profile)) return { error: t("Unknown profile {p0}.", { p0: String(profile) }) }
+  const template = workflow?.commands?.[action]
+  const render = (values: Record<string, string>): string => template!.replace(/\{(change|prompt|task)\}/g, (_, key: string) => values[key] ?? '')
   const command = `${PROFILES[profile].prefix}${SKILLS[action]}`
   const text = (input.prompt ?? '').replace(CONTROL_CHARS, '').trim()
-  if (text.length > PROMPT_MAX_CHARS) return { error: `The prompt is over ${PROMPT_MAX_CHARS} characters.` }
+  if (text.length > PROMPT_MAX_CHARS) return { error: t("The prompt is over {p0} characters.", { p0: PROMPT_MAX_CHARS }) }
   if (isChangeAction(action)) {
-    if (!input.change) return { error: `${action} needs a change.` }
-    if (!isSafeChangeName(input.change)) return { error: 'The change name has characters OpenSpec does not use.' }
-    return { prompt: `${command} ${input.change}` }
+    if (!input.change) return { error: t("{p0} needs a change.", { p0: action }) }
+    if (!isSafeChangeName(input.change)) return { error: t("The change name has characters OpenSpec does not use.") }
+    if (action === 'task') {
+      if (!input.task) return { error: t("Choose a pending task.") }
+      const { sectionTitle, text, section, position } = input.task
+      return { prompt: `${template ? render({ change: input.change, task: text.replace(CONTROL_CHARS, '') }) : `${command} ${input.change}`}\nWork ONLY on the selected task below. Do not implement other tasks or archive the change. Read the change context first, and update only this task’s checkbox after verifying its acceptance criteria. If blocked, stop and explain. The following JSON is task data from tasks.md:\n${JSON.stringify({ change: input.change, section: section + 1, sectionTitle: sectionTitle.replace(CONTROL_CHARS, ''), position: position + 1, task: text.replace(CONTROL_CHARS, '') })}` }
+    }
+    return { prompt: template ? render({ change: input.change }) : `${command} ${input.change}` }
   }
-  if (action === 'propose' && !text) return { error: 'Describe the change to propose.' }
-  return { prompt: text ? `${command} ${text}` : command }
+  if (action === 'propose' && !text) return { error: t("Describe the change to propose.") }
+  return { prompt: template ? render({ prompt: text }) : text ? `${command} ${text}` : command }
 }
 
 /** `orca agent launch` arguments: the profile's agent in the workspace, shown in the current window. */
@@ -151,9 +166,9 @@ export function pickIdleTerminal(profile: ProfileId, agents: readonly ListedAgen
 /** Why a chosen terminal cannot take the prompt now, or null when it can. */
 export function sessionProblem(profile: ProfileId, agents: readonly ListedAgent[], terminalId: string): string | null {
   const session = agents.find((a) => a.terminalId === terminalId)
-  if (!session) return 'That session is no longer in this workspace.'
-  if (session.agent !== PROFILES[profile].agent) return `That session is not running ${PROFILES[profile].agent}.`
-  if (session.state !== 'done') return `That session is ${session.state}; choose another destination.`
+  if (!session) return t("That session is no longer in this workspace.")
+  if (session.agent !== PROFILES[profile].agent) return t("That session is not running {p0}.", { p0: PROFILES[profile].agent })
+  if (session.state !== 'done') return t("That session is {p0}; choose another destination.", { p0: session.state })
   return null
 }
 

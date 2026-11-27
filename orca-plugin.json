@@ -3,10 +3,13 @@
   "manifestVersion": 2,
   "id": "openspec-pulse",
   "name": "OpenSpec Pulse",
-  "version": "0.1.0",
-  "description": "Track OpenSpec changes, task progress, archived proposals and specs in Orca's sidebar. Continue the next step with Claude Code.",
+  "version": "0.2.0",
+  "description": "Track OpenSpec changes, tasks, specs and shared stores in Orca's sidebar and board. Review agent commands and local Claude/Codex usage, in English, Spanish or Simplified Chinese.",
   "publisher": "dos2locos",
-  "author": { "name": "Dos2Locos", "url": "https://github.com/Dos2Locos" },
+  "author": {
+    "name": "Dos2Locos",
+    "url": "https://github.com/Dos2Locos"
+  },
   "repository": "https://github.com/Dos2Locos/openspec-pulse",
   "homepage": "https://github.com/Dos2Locos/openspec-pulse#readme",
   "license": "MIT",
@@ -17,13 +20,13 @@
   "screenshots": [
     {
       "path": "media/workflow-light.png",
-      "alt": "OpenSpec Pulse in a light theme: active change states and progress beside a change's artifacts and grouped tasks, using sample data.",
+      "alt": "OpenSpec Pulse in a light theme: active change states and progress beside a change's artifacts and related changes, using sample data.",
       "caption": "From proposal to completed tasks. Real plugin UI with sample workspace data.",
       "theme": "light"
     },
     {
       "path": "media/workflow-dark.png",
-      "alt": "OpenSpec Pulse in a dark theme: active change states and progress beside a change's artifacts and grouped tasks, using sample data.",
+      "alt": "OpenSpec Pulse in a dark theme: active change states and progress beside a change's artifacts and related changes, using sample data.",
       "caption": "Follow the next step, with support for light and dark themes.",
       "theme": "dark"
     },
@@ -53,10 +56,16 @@
       {
         "id": "openspec-pulse.showPanel",
         "title": "OpenSpec Pulse: Show panel"
+      },
+      {
+        "id": "openspec-pulse.openBoard",
+        "title": "OpenSpec Pulse: Open board"
       }
     ],
     "events": [
-      { "on": "workspace.changed" }
+      {
+        "on": "workspace.changed"
+      }
     ],
     "statusBarItems": [
       {
@@ -66,13 +75,34 @@
         "tooltip": "OpenSpec Pulse",
         "command": "openspec-pulse.showPanel"
       }
+    ],
+    "customEditors": [
+      {
+        "id": "board",
+        "title": "OpenSpec Board",
+        "extensions": [
+          ".pulse-board"
+        ],
+        "entry": "src/board/main.ts",
+        "frame": "isolated"
+      }
     ]
   },
   "capabilities": [
-    { "kind": "workspace:read" },
-    { "kind": "workspace:write" },
-    { "kind": "agent:read" },
-    { "kind": "terminal:send" },
-    { "kind": "storage:own" }
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "workspace:write"
+    },
+    {
+      "kind": "agent:read"
+    },
+    {
+      "kind": "terminal:send"
+    },
+    {
+      "kind": "storage:own"
+    }
   ]
 }
