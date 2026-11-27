@@ -25,6 +25,21 @@ Task completion and PR delivery are separate signals. Sibling worktrees and shar
 are read-only for agent actions. The Spend tab shows local Claude Code/Codex usage and optional
 project run records, with coverage and estimated API-equivalent USD.
 
+## Screenshots
+
+The main-area board brings the four local change states together:
+
+![Main-area board with task progress and dependency context](media/board-dark.png)
+
+Stores and Spend open directly in their own tabs. Usage amounts below are synthetic,
+API-equivalent estimates, not subscription charges:
+
+![Dedicated Stores and Spend tabs with sample workspace data](media/stores-spend-light.png)
+
+The interface follows Orca’s language. Spanish and Simplified Chinese are shown here:
+
+![Spanish Stores and Simplified Chinese Spend views](media/languages.png)
+
 ## Install
 
 Enable plugins in Orca under **Settings → Plugins → Turn on plugins**. Install the latest

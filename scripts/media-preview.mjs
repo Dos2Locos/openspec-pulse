@@ -211,9 +211,37 @@ function host(view, scenario, locale = 'en', initialTab = view) {
 
 function page(url) {
   const dark = url.searchParams.get('theme') === 'dark'
-  const collection = url.searchParams.get('view') === 'library'
-  const frames = collection ? ['archive', 'specs'] : ['active', 'detail']
-  const labels = collection ? ['Completed proposals', 'Shared capability specs'] : ['Every change, at a glance', 'The work behind the progress']
+  const gallery = {
+    workflow: {
+      title: 'Your specs. In motion.', intro: 'Track change states, task progress and the next action from one panel.',
+      frames: [{ view: 'active', label: 'Every change, at a glance' }, { view: 'detail', label: 'The work behind the progress' }]
+    },
+    library: {
+      title: 'A history you can build on.', intro: 'Revisit archived changes and open the specs that define your project.',
+      frames: [{ view: 'archive', label: 'Completed proposals' }, { view: 'specs', label: 'Shared capability specs' }]
+    },
+    board: {
+      title: 'The whole workflow. One board.', intro: 'Four local states, shared filters and worktree context in the main area.',
+      frames: [{ view: 'board', label: 'A focused workspace board' }]
+    },
+    tools: {
+      title: 'Shared specs. Clear usage.', intro: 'Manage OpenSpec stores and review local Claude Code / Codex usage in dedicated tabs.',
+      frames: [{ view: 'stores', scenario: 'stores', label: 'Stores · explicit roots and system scope' },
+        { view: 'spend', scenario: 'usage', label: 'Spend · local tokens and estimated API cost' }]
+    },
+    languages: {
+      title: 'Your workflow. Your language.', intro: 'English, Spanish and Simplified Chinese, following the language selected in Orca.',
+      frames: [{ view: 'stores', scenario: 'stores', locale: 'es-ES', label: 'Español · Almacenes' },
+        { view: 'spend', scenario: 'usage', locale: 'zh-Hans', label: '简体中文 · 费用' }]
+    }
+  }
+  const selected = gallery[url.searchParams.get('view')] ?? gallery.workflow
+  const frames = selected.frames
+  const toolsGallery = ['tools', 'languages'].includes(url.searchParams.get('view'))
+  const zoom = toolsGallery ? 1.1 : 1.25
+  const frameHeight = toolsGallery ? 730 : 716
+  const frameUrl = frame => '/panel?' + new URLSearchParams({ view: frame.view, theme: dark ? 'dark' : 'light',
+    ...(frame.scenario ? { scenario: frame.scenario } : {}), ...(frame.locale ? { locale: frame.locale } : {}) })
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>OpenSpec Pulse — sample gallery</title>
   <style>
   *{box-sizing:border-box} body{margin:0;background:${dark ? '#0e1213' : '#f3f5f2'};color:${dark ? '#eff2e9' : '#17221c'};font-family:system-ui,sans-serif}
@@ -221,15 +249,15 @@ function page(url) {
   .eyebrow{font-size:14px;letter-spacing:2px;text-transform:uppercase;color:${dark ? '#b3d96b' : '#456722'}}
   h1{font-size:42px;letter-spacing:-1.5px;margin:10px 0 8px;font-weight:650}
   .intro{margin:0;font-size:18px;color:${dark ? '#a7b1aa' : '#58635c'}}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:30px}
+  .grid{display:grid;grid-template-columns:repeat(${frames.length},minmax(0,1fr));gap:32px;margin-top:30px}
   .label{font-size:14px;font-weight:600;margin:0 0 12px}
-  .frame{height:716px;border:1px solid ${dark ? '#303936' : '#d1d8cf'};border-radius:14px;overflow:hidden;background:${dark ? '#0d1117' : '#fff'};box-shadow:0 12px 30px #0000000d}
-  iframe{width:80%;height:80%;transform:scale(1.25);transform-origin:top left;border:0;display:block}
+  .frame{height:${frameHeight}px;border:1px solid ${dark ? '#303936' : '#d1d8cf'};border-radius:14px;overflow:hidden;background:${dark ? '#0d1117' : '#fff'};box-shadow:0 12px 30px #0000000d}
+  iframe{width:${100 / zoom}%;height:${100 / zoom}%;transform:scale(${zoom});transform-origin:top left;border:0;display:block}
   footer{margin-top:18px;font-size:13px;color:${dark ? '#8f9b93' : '#657167'}}
   </style><main><div class="eyebrow">OpenSpec Pulse / Orca community plugin</div>
-  <h1>${collection ? 'A history you can build on.' : 'Your specs. In motion.'}</h1>
-  <p class="intro">${collection ? 'Revisit archived changes and open the specs that define your project.' : 'Track change states, task progress and the next action from one panel.'}</p>
-  <div class="grid">${frames.map((view, i) => `<section><p class="label">${labels[i]}</p><div class="frame"><iframe title="${labels[i]}" src="/panel?view=${view}&theme=${dark ? 'dark' : 'light'}"></iframe></div></section>`).join('')}</div>
+  <h1>${selected.title}</h1>
+  <p class="intro">${selected.intro}</p>
+  <div class="grid">${frames.map(frame => `<section><p class="label">${frame.label}</p><div class="frame"><iframe title="${frame.label}" src="${frameUrl(frame)}"></iframe></div></section>`).join('')}</div>
   <footer>Actual plugin interface · Sample workspace data · ${dark ? 'Dark' : 'Light'} theme</footer></main></html>`
 }
 

@@ -19,6 +19,24 @@
   },
   "screenshots": [
     {
+      "path": "media/board-dark.png",
+      "alt": "OpenSpec Pulse main-area board in a dark theme, with four local-state columns, task progress, dependency warnings and workspace context. Synthetic sample data.",
+      "caption": "See the whole workflow on the main-area board. Sample workspace.",
+      "theme": "dark"
+    },
+    {
+      "path": "media/stores-spend-light.png",
+      "alt": "Stores and Spend tabs: shared OpenSpec roots, store controls, Claude/Codex tokens and estimated API-equivalent USD. Synthetic sample data.",
+      "caption": "Manage shared stores and review local usage in dedicated tabs. Estimates are not subscription charges.",
+      "theme": "light"
+    },
+    {
+      "path": "media/languages.png",
+      "alt": "OpenSpec Pulse in Spanish and Simplified Chinese: localized Stores and Spend controls with regional USD formatting. Synthetic sample data.",
+      "caption": "English, Spanish and Simplified Chinese, following Orca’s language. Sample workspace.",
+      "theme": "light"
+    },
+    {
       "path": "media/workflow-light.png",
       "alt": "OpenSpec Pulse in a light theme: active change states and progress beside a change's artifacts and related changes, using sample data.",
       "caption": "From proposal to completed tasks. Real plugin UI with sample workspace data.",

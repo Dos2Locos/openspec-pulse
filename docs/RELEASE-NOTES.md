@@ -47,3 +47,22 @@ for project links, reviewed revisions and licenses.
 
 Install through Orca from `Dos2Locos/openspec-pulse`. See the [README](https://github.com/Dos2Locos/openspec-pulse/blob/v0.2.0/README.md) for setup
 and the [usage guide](https://github.com/Dos2Locos/openspec-pulse/blob/v0.2.0/docs/USAGE.md) for configuration and limits.
+
+## New screenshots
+
+Actual plugin UI with synthetic sample data. Click an image to view it at full size.
+
+### Main-area board
+
+![OpenSpec Pulse board with four local-state columns](https://github.com/Dos2Locos/openspec-pulse/releases/download/v0.2.0/board-dark.png)
+
+### Dedicated Stores and Spend tabs
+
+Shared roots and explicit store controls beside local Claude/Codex usage. Amounts shown
+are sample API-equivalent estimates, not subscription charges.
+
+![Stores and Spend with sample usage](https://github.com/Dos2Locos/openspec-pulse/releases/download/v0.2.0/stores-spend-light.png)
+
+### Spanish and Simplified Chinese
+
+![Stores in Spanish and Spend in Simplified Chinese](https://github.com/Dos2Locos/openspec-pulse/releases/download/v0.2.0/languages.png)

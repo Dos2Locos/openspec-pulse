@@ -46,6 +46,9 @@ committed with the release. Orca copies them from the tagged repository.
 | `media/workflow-light.png` | 1600×1000 | Active change list, artifacts and related changes, light theme |
 | `media/workflow-dark.png` | 1600×1000 | Active change list, artifacts and related changes, dark theme |
 | `media/archive-specs.png` | 1600×1000 | Archive and shared specs |
+| `media/board-dark.png` | 1600×1000 | Main-area board with four state columns |
+| `media/stores-spend-light.png` | 1600×1000 | Dedicated Stores and Spend tabs with sample usage |
+| `media/languages.png` | 1600×1000 | Spanish Stores and Simplified Chinese Spend |
 
 The gallery captures the **shipping panel modules and CSS** in a browser, with a small sample
 host and presentation frame. It is not an AI mockup or a capture of the whole Orca window.
@@ -66,6 +69,9 @@ Capture these URLs at a viewport of **1600×1000 CSS pixels**, scale 1, once bot
 1. `http://127.0.0.1:4177/?view=workflow&theme=light` → `media/workflow-light.png`
 2. `http://127.0.0.1:4177/?view=workflow&theme=dark` → `media/workflow-dark.png`
 3. `http://127.0.0.1:4177/?view=library&theme=light` → `media/archive-specs.png`
+4. `http://127.0.0.1:4177/?view=board&theme=dark` → `media/board-dark.png`
+5. `http://127.0.0.1:4177/?view=tools&theme=light` → `media/stores-spend-light.png`
+6. `http://127.0.0.1:4177/?view=languages&theme=light` → `media/languages.png`
 
 In Orca's browser, apply `orca viewport --page <id> --width 1600 --height 1000` **after
 each navigation**. Retina captures may still be 3200×2000 physical pixels; downsample them
@@ -74,9 +80,13 @@ to 1600×1000 before submission (for example with macOS `sips -z 1000 1600 <file
 The server binds only to `127.0.0.1:4177` by default (`PULSE_PREVIEW_PORT` overrides the port). Stop it with Ctrl+C after capture.
 Review every PNG: no clipped tasks, loading messages, errors or private workspace data.
 
-The gallery was regenerated and reviewed against the 0.2.0 release checkout. It
-covers the sidebar only; do not describe it as a board/store screenshot.
-Keep its captions accurate and add board/store captures to the manifest only after review.
+The six reviewed gallery images cover sidebar, board, shared stores, automatic usage and
+localization. They use shipping UI modules with synthetic data. Tools/language galleries use
+1.1× framing so the store forms fit; the other galleries use 1.25× framing.
+
+The board/tools/language screenshots were added after the `v0.2.0` source tag and are attached
+to that GitHub release and embedded in its notes. The tag is preserved. Their manifest entries
+on `main` will enter the directory's tagged source gallery with the next version tag.
 
 The cover was generated with the built-in `imagegen` tool and exported as JPEG at 1600×1000.
 Prompt:
