@@ -15,6 +15,7 @@ import {
 import { h, icon, ICONS, type Child } from './dom'
 import { composer } from './launch'
 import type { Actions, PanelState, Tab } from './model'
+import { filterActive, filterArchive, filterSpecs, page, PAGE_SIZE } from './search'
 import { formatDate } from './text'
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -200,6 +201,75 @@ export function tabBar(state: PanelState, actions: Actions): HTMLElement | null 
   )
 }
 
+const SEARCH_LABEL: Record<Tab, string> = {
+  active: 'Search changes by name',
+  archive: 'Search archived changes by name',
+  specs: 'Search specs by path or purpose'
+}
+
+/** The search box of a tab; `data-focus` keeps focus and caret while the list redraws. */
+function searchBox(tab: Tab, state: PanelState, actions: Actions, shown: number, total: number): HTMLElement {
+  const query = state.queries[tab]
+  return h('div', { class: 'search', role: 'search' }, [
+    h('input', {
+      type: 'search',
+      class: 'search-input',
+      'data-focus': `search:${tab}`,
+      'aria-label': SEARCH_LABEL[tab],
+      placeholder: SEARCH_LABEL[tab],
+      autocomplete: 'off',
+      spellcheck: 'false',
+      value: query,
+      oninput: (event: Event) => actions.setQuery(tab, (event.target as HTMLInputElement).value)
+    }),
+    query.trim() || (tab === 'active' && state.filter)
+      ? h('span', { class: 'search-count muted', role: 'status' }, [`${shown} of ${total}`])
+      : null
+  ])
+}
+
+/** The rows of the first pages and the Load more control; `noun` names what is counted. */
+function pagedList<T>(tab: Tab, state: PanelState, actions: Actions, items: readonly T[], row: (item: T) => Node, noun: string): Child[] {
+  const { shown, remaining } = page(items, state.limits[tab])
+  return [
+    h('div', { class: 'body-list' }, shown.map(row)),
+    remaining > 0
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'secondary load-more',
+            'data-focus': `more:${tab}`,
+            onclick: () => actions.loadMore(tab)
+          },
+          [`Load more (${Math.min(PAGE_SIZE, remaining)} of ${remaining} ${noun} left)`]
+        )
+      : null
+  ]
+}
+
+/** No row matches the search: say so and offer to clear it. */
+function noMatches(tab: Tab, state: PanelState, actions: Actions): HTMLElement {
+  const filtered = tab === 'active' && state.filter !== null
+  return empty(
+    'No results',
+    state.queries[tab].trim() ? `Nothing matches “${state.queries[tab].trim()}”.` : 'No change has the selected state.',
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'secondary',
+        'data-focus': `clear:${tab}`,
+        onclick: () => {
+          actions.setQuery(tab, '')
+          if (filtered) actions.setFilter(null)
+        }
+      },
+      [filtered ? 'Clear search and filter' : 'Clear search']
+    )
+  )
+}
+
 function archiveRow(change: ArchivedChange, actions: Actions): HTMLElement {
   const tasks = change.tasks ? `${change.tasks.done}/${change.tasks.total}` : 'no tasks'
   return h('button', { type: 'button', class: 'row', title: `Open ${change.name}`, onclick: () => actions.openArchived(change.folder) }, [
@@ -214,7 +284,13 @@ export function archiveView(state: PanelState, actions: Actions): Child[] {
   if (state.archive.length === 0) {
     return [empty('No archived changes', 'A change moves here when it is archived with /openspec-archive.')]
   }
-  return [h('div', { class: 'body-list' }, state.archive.map((change) => archiveRow(change, actions)))]
+  const found = filterArchive(state.archive, state.queries.archive)
+  return [
+    searchBox('archive', state, actions, found.length, state.archive.length),
+    ...(found.length === 0
+      ? [noMatches('archive', state, actions)]
+      : pagedList('archive', state, actions, found, (change) => archiveRow(change, actions), 'changes'))
+  ]
 }
 
 function specRow(spec: SpecSummary, actions: Actions): HTMLElement {
@@ -230,7 +306,13 @@ export function specsView(state: PanelState, actions: Actions): Child[] {
   if (state.specs.length === 0) {
     return [empty('No specs yet', 'Archiving a change creates the specs in openspec/specs/.')]
   }
-  return [h('div', { class: 'body-list' }, state.specs.map((spec) => specRow(spec, actions)))]
+  const found = filterSpecs(state.specs, state.queries.specs)
+  return [
+    searchBox('specs', state, actions, found.length, state.specs.length),
+    ...(found.length === 0
+      ? [noMatches('specs', state, actions)]
+      : pagedList('specs', state, actions, found, (spec) => specRow(spec, actions), 'specs'))
+  ]
 }
 
 function empty(title: string, text: string, ...extra: Child[]): HTMLElement {
@@ -259,14 +341,16 @@ export function listView(state: PanelState, actions: Actions): Child[] {
     case 'ok': {
       if (state.tab === 'archive') return archiveView(state, actions)
       if (state.tab === 'specs') return specsView(state, actions)
-      const sorted = [...list.changes].sort((a, b) => b.updatedAt - a.updatedAt)
-      const shown = state.filter ? sorted.filter((c) => changeState(c) === state.filter) : sorted
+      const found = filterActive(list.changes, state.queries.active, state.filter, changeState)
       return [
         composer(state, actions),
+        list.changes.length === 0 ? null : searchBox('active', state, actions, found.length, list.changes.length),
         strip(list.changes, state.filter, actions),
-        list.changes.length === 0
-          ? empty('No active changes', 'openspec/changes/ only holds the archive. Press + to propose one.')
-          : h('div', { class: 'body-list' }, shown.map((change) => card(change, state, actions)))
+        ...(list.changes.length === 0
+          ? [empty('No active changes', 'openspec/changes/ only holds the archive. Press + to propose one.')]
+          : found.length === 0
+            ? [noMatches('active', state, actions)]
+            : pagedList('active', state, actions, found, (change) => card(change, state, actions), 'changes'))
       ]
     }
   }

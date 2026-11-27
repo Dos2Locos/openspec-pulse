@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Search Active and Archive by name and Specs by path or purpose (case and accent insensitive),
+  combined with the state filter. Lists show 40 rows at a time with a Load more button; the
+  search text is remembered per workspace and tab.
 - Choose Claude Code or Codex (tested "skills" profiles; Claude stays the default). Codex uses
   `$openspec-*` skill invocations, not a text swap of the Claude commands.
 - Every agent action now shows agent, destination and command in a sheet before it is sent.

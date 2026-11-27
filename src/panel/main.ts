@@ -5,7 +5,8 @@ import type { AgentAction, AgentTarget, ProfileId } from '../protocol'
 import { stateCounts } from '../state'
 import { detailView } from './detail'
 import { h } from './dom'
-import { activeLaunch, type Actions, type PanelState } from './model'
+import { activeLaunch, type Actions, type PanelState, type Tab } from './model'
+import { nextLimit, PAGE_SIZE } from './search'
 import { header, listView, refreshAges, tabBar } from './views'
 
 const AGE_REFRESH_MS = 60_000
@@ -21,6 +22,8 @@ let state: PanelState = {
   archivedFolder: null,
   archivedDetail: null,
   filter: null,
+  queries: { active: '', archive: '', specs: '' },
+  limits: { active: PAGE_SIZE, archive: PAGE_SIZE, specs: PAGE_SIZE },
   error: null,
   notice: null,
   composer: null,
@@ -57,6 +60,33 @@ async function guarded(work: () => Promise<void>): Promise<void> {
 }
 
 const selectedKey = (): string | null => (workspaceId ? `selected:${workspaceId}` : null)
+
+const TABS: readonly Tab[] = ['active', 'archive', 'specs']
+// The version leaves room to change what is stored without reading old values wrongly.
+const queryKey = (workspace: string, tab: Tab): string => `query:v1:${workspace}:${tab}`
+
+async function saveQuery(tab: Tab, query: string): Promise<void> {
+  if (!workspaceId) return
+  const key = queryKey(workspaceId, tab)
+  try {
+    await (query ? orca.storage.set(key, query) : orca.storage.delete(key))
+  } catch {
+    // The search still works; it is just not remembered.
+  }
+}
+
+async function loadQueries(id: string): Promise<Record<Tab, string>> {
+  const queries: Record<Tab, string> = { active: '', archive: '', specs: '' }
+  for (const tab of TABS) {
+    try {
+      const stored = await orca.storage.get(queryKey(id, tab))
+      if (typeof stored === 'string') queries[tab] = stored
+    } catch {
+      // Without storage the search starts empty.
+    }
+  }
+  return queries
+}
 
 async function saveSelected(name: string | null): Promise<void> {
   const key = selectedKey()
@@ -116,8 +146,11 @@ async function onWorkspace(id: string | null): Promise<void> {
         // Without storage the list shows; nothing is lost.
       }
     }
+    const queries = id ? await loadQueries(id) : { active: '', archive: '', specs: '' }
+    // The workspace changed again while the queries were read: the newer call owns the state.
+    if (id !== workspaceId) return
     update(
-      { selected, detail: null, filter: null, composer: null, pending: null, agent: null, tab: 'active', archive: null, specs: null, archivedFolder: null, archivedDetail: null },
+      { selected, detail: null, filter: null, queries, limits: { active: PAGE_SIZE, archive: PAGE_SIZE, specs: PAGE_SIZE }, composer: null, pending: null, agent: null, tab: 'active', archive: null, specs: null, archivedFolder: null, archivedDetail: null },
       false
     )
   }
@@ -210,7 +243,12 @@ const actions: Actions = {
   openArchivedFile: (name, file) =>
     void guarded(async () => void (await orca.plugin.request('changes.open', { name, file, archived: true }))),
   openSpec: (capability) => void guarded(async () => void (await orca.plugin.request('specs.open', { capability }))),
-  setFilter: (filter) => update({ filter }),
+  setFilter: (filter) => update({ filter, limits: { ...state.limits, active: PAGE_SIZE } }),
+  setQuery: (tab, query) => {
+    update({ queries: { ...state.queries, [tab]: query }, limits: { ...state.limits, [tab]: PAGE_SIZE } })
+    void saveQuery(tab, query)
+  },
+  loadMore: (tab) => update({ limits: { ...state.limits, [tab]: nextLimit(state.limits[tab]) } }),
   openFile: (name, file) => void guarded(async () => void (await orca.plugin.request('changes.open', { name, file }))),
   // Never sends at once: the sheet shows agent, destination and command first.
   run: (action, change) => {
@@ -281,7 +319,7 @@ const focusKey = (el: Element): string =>
 function render(): void {
   const active = document.activeElement
   const key = active && active !== document.body && root.contains(active) ? focusKey(active) : null
-  const caret = active instanceof HTMLTextAreaElement ? [active.selectionStart, active.selectionEnd] : null
+  const caret = active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement ? [active.selectionStart, active.selectionEnd] : null
   const notice = state.notice
   const tabs = state.selected || state.archivedFolder ? null : tabBar(state, actions)
   root.replaceChildren(
@@ -295,9 +333,17 @@ function render(): void {
     ])
   )
   if (!key) return
-  const target = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => focusKey(el) === key)
+  let target = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => focusKey(el) === key)
+  // The last batch removes Load more; keep keyboard navigation at its first new row.
+  if (!target && key === `more:${state.tab}`) {
+    const row = root.querySelector<HTMLElement>(`.body-list > :nth-child(${state.limits[state.tab] - PAGE_SIZE + 1})`)
+    target = row?.matches(FOCUSABLE) ? row : row?.querySelector<HTMLElement>(FOCUSABLE) ?? undefined
+  }
+  if (!target && key === `clear:${state.tab}`) {
+    target = root.querySelector<HTMLElement>('.search-input') ?? undefined
+  }
   target?.focus()
-  if (caret && target instanceof HTMLTextAreaElement) target.setSelectionRange(caret[0], caret[1])
+  if (caret && (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement)) target.setSelectionRange(caret[0], caret[1])
 }
 
 async function readVersion(): Promise<void> {

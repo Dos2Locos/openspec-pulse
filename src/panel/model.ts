@@ -20,6 +20,9 @@ export type PanelState = {
   archivedFolder: string | null
   archivedDetail: ArchivedChangeDetail | null
   filter: ChangeState | null
+  /** The search text and the number of rows shown of each tab; both are kept per tab. */
+  queries: Record<Tab, string>
+  limits: Record<Tab, number>
   error: string | null
   notice: Notice | null
   /** The open first-prompt form. */
@@ -60,6 +63,8 @@ export type Actions = {
   openArchivedFile(folder: string, file: string): void
   openSpec(capability: string): void
   setFilter(state: ChangeState | null): void
+  setQuery(tab: Tab, query: string): void
+  loadMore(tab: Tab): void
   openFile(name: string, file?: string): void
   run(action: AgentAction, change: string): void
   initialize(): void

@@ -80,6 +80,13 @@ detail's own back button. A workspace switch returns to `Active`. Everything ref
 when a file under `openspec/` changes, so archiving a change moves it from `Active` to `Archive`
 without pressing Refresh.
 
+Each list has a search box: Active and Archive match change names, Specs match the capability path
+and Purpose. Case and accents are ignored (`autenticacion` finds `Autenticación`), every word must
+match, and the state filter of Active still applies. The tab counts stay the totals; the box shows
+`filtered of total`. Lists show 40 rows at a time; **Load more** (a plain button) adds the next
+batch. The search text is remembered per workspace and tab; the first tab after a workspace
+switch is still `Active`. Search covers names and Purpose only, not the text of artifacts.
+
 ### Active
 
 A summary strip with one item per state that has changes, such as `● 2 in progress  ● 1 done`.

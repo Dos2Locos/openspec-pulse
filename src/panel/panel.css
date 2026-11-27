@@ -615,3 +615,27 @@ html.dark .bar > span {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Search box and Load more of the lists. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--orca-border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--orca-background);
+  color: inherit;
+  font: inherit;
+}
+.search-count {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.load-more {
+  align-self: center;
+}
