@@ -66,7 +66,7 @@ test('sends the command to an idle Claude Code terminal instead of opening a cha
   })
   try {
     const answer = await worker.request('agent.run', { action: 'propose', prompt: 'Add CSV\nexport' })
-    assert.deepEqual(answer, { surface: 'open-terminal' })
+    assert.deepEqual(answer, { surface: 'open-terminal', agent: 'claude' })
     assert.deepEqual(host.callsOf('terminal.sendText'), [
       { terminalId: 't9', text: '/openspec-propose Add CSV export', enter: true }
     ])
@@ -180,6 +180,89 @@ test('posts changes.changed when a change moves into the archive', async () => {
 
     const after = await worker.request('changes.list')
     assert.ok(after.status === 'ok' && after.changes.length === 0 && after.archived === 1)
+  } finally {
+    await worker.deactivate()
+  }
+})
+
+const agentRows = [
+  { terminalId: 'c-done', title: null, agent: 'claude', state: 'done', stateStartedAt: 1 },
+  { terminalId: 'c-work', title: null, agent: 'claude', state: 'working', stateStartedAt: 1 },
+  { terminalId: 'x-done', title: null, agent: 'codex', state: 'done', stateStartedAt: 1 }
+]
+const sendHost = { 'agents.list': { agents: agentRows }, 'terminal.sendText': { accepted: true }, 'terminal.focus': { focused: true } }
+
+test('saves preferences per workspace, keeping unknown fields, and rejects stale or invalid ones', async () => {
+  const { host, worker } = await setup({ ...sendHost })
+  try {
+    const first = await worker.request('agent.options')
+    assert.deepEqual(first?.prefs, { profile: 'claude-skills', model: null })
+    assert.deepEqual(first?.sessions.map((s) => [s.terminalId, s.available]), [['c-done', true], ['c-work', false], ['x-done', true]])
+    assert.deepEqual(await worker.request('agent.prefs.set', { workspaceId: 'w1', prefs: { profile: 'codex-skills', model: null } }), { profile: 'codex-skills', model: null })
+    assert.deepEqual((await worker.request('agent.options'))?.prefs, { profile: 'codex-skills', model: null })
+    // Another workspace keeps its own default.
+    host.respond('workspace.readContext', { workspaceId: 'w2', branch: 'main', displayName: 'o', terminals: [] })
+    host.respond('workspace.list', { workspaces: [{ id: 'w2', kind: 'folder', name: 'o', path: '/tmp', branch: null, hostId: 'local' }], truncated: false })
+    assert.deepEqual((await worker.request('agent.options'))?.prefs, { profile: 'claude-skills', model: null })
+    await assert.rejects(worker.request('agent.prefs.set', { workspaceId: 'w1', prefs: { profile: 'claude-skills', model: null } }), /changed/)
+    await assert.rejects(worker.request('agent.prefs.set', { workspaceId: 'w2', prefs: { profile: 'codex-skills', model: 'gpt-x' } }))
+    await assert.rejects(worker.request('agent.prefs.set', { workspaceId: 'w2', prefs: { profile: 'nope' as never, model: null } }))
+  } finally {
+    await worker.deactivate()
+  }
+})
+
+test('sends the Codex command to a chosen idle Codex session and refuses the rest, sending nothing', async () => {
+  const { host, worker, path } = await setup({ ...sendHost })
+  try {
+    await mkdir(join(path, 'openspec', 'changes', 'add-x'), { recursive: true })
+    await writeFile(join(path, 'openspec', 'changes', 'add-x', 'tasks.md'), '- [ ] a\n')
+    const base = { action: 'apply' as const, change: 'add-x', workspaceId: 'w1' }
+    assert.deepEqual(await worker.request('agent.run', { ...base, profile: 'codex-skills', target: { terminalId: 'x-done' } }), { surface: 'open-terminal', agent: 'codex' })
+    assert.deepEqual(host.callsOf('terminal.sendText'), [{ terminalId: 'x-done', text: '$openspec-apply-change add-x', enter: true }])
+
+    const sent = host.callsOf('terminal.sendText').length
+    // Busy, wrong agent, unknown session, workspace changed, model on Codex, bad profile.
+    await assert.rejects(worker.request('agent.run', { ...base, profile: 'claude-skills', target: { terminalId: 'c-work' } }), /working/)
+    await assert.rejects(worker.request('agent.run', { ...base, profile: 'claude-skills', target: { terminalId: 'x-done' } }), /not running/)
+    await assert.rejects(worker.request('agent.run', { ...base, profile: 'claude-skills', target: { terminalId: 'gone' } }), /no longer/)
+    await assert.rejects(worker.request('agent.run', { ...base, workspaceId: 'w9', target: { terminalId: 'c-done' } }), /changed/)
+    await assert.rejects(worker.request('agent.run', { ...base, profile: 'codex-skills', model: 'gpt-x', target: 'new' }), /cannot choose a model/)
+    await assert.rejects(worker.request('agent.run', { ...base, profile: 'nope' as never }))
+    await assert.rejects(worker.request('agent.run', { ...base, change: '../x', target: { terminalId: 'c-done' } }))
+    assert.equal(host.callsOf('terminal.sendText').length, sent)
+  } finally {
+    await worker.deactivate()
+  }
+})
+
+test('a session that turns blocked, or a delivery that is refused, is an error with no other send', async () => {
+  const { host, worker } = await setup({ ...sendHost })
+  try {
+    host.respond('agents.list', { agents: [{ terminalId: 'c-done', title: null, agent: 'claude', state: 'blocked', stateStartedAt: 1 }] })
+    await assert.rejects(worker.request('agent.run', { action: 'explore', target: { terminalId: 'c-done' } }), /blocked/)
+    assert.equal(host.callsOf('terminal.sendText').length, 0)
+
+    host.respond('agents.list', { agents: agentRows })
+    host.respond('terminal.sendText', { accepted: false })
+    await assert.rejects(worker.request('agent.run', { action: 'explore', target: 'auto' }), /did not accept/)
+    await assert.rejects(worker.request('agent.run', { action: 'explore', target: { terminalId: 'c-done' } }), /did not accept/)
+    // Rejected twice, and nothing went anywhere else (no focus, no launch).
+    assert.equal(host.callsOf('terminal.focus').length, 0)
+  } finally {
+    await worker.deactivate()
+  }
+})
+
+test('sends one command at a time', async () => {
+  const { host, worker } = await setup({ ...sendHost })
+  try {
+    const results = await Promise.allSettled([
+      worker.request('agent.run', { action: 'explore', target: { terminalId: 'c-done' } }),
+      worker.request('agent.run', { action: 'explore', target: { terminalId: 'c-done' } })
+    ])
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1)
+    assert.equal(host.callsOf('terminal.sendText').length, 1)
   } finally {
     await worker.deactivate()
   }

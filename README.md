@@ -55,16 +55,17 @@ affiliated with or endorsed by Orca or OpenSpec.
 - An existing `openspec/` workspace for browsing changes and specs. No OpenSpec CLI is
   needed just to read it.
 - The [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) for **Initialize OpenSpec**.
-- Claude Code, configured in Orca, and the OpenSpec Claude skills for the agent buttons
-  (`openspec init --tools claude` in your project).
+- Claude Code or Codex, configured in Orca, and the OpenSpec skills of that agent for the agent
+  buttons (`openspec init --tools claude` / `--tools codex` in your project).
 
 ### Access and privacy
 
 The worker runs with your user account's access. Its declared capabilities let it read the
 focused workspace and agent status, open files and focus terminals, send OpenSpec prompts,
-and remember the selected change in its own storage. The plugin reads local `openspec/`
-files; initialization runs the OpenSpec CLI and agent buttons send prompts to Claude Code.
-It has no analytics or telemetry. Claude Code uses your configured account and service.
+and remember the selected change and, per workspace, the agent profile and model in its own storage. The plugin reads local `openspec/`
+files; initialization runs the OpenSpec CLI and agent buttons send prompts to Claude Code or Codex.
+It has no analytics or telemetry. The agent uses your configured account and service. No new
+permission is needed: profiles use `agent:read`, `terminal:send` and `storage:own`.
 
 ## The panel
 
@@ -118,14 +119,29 @@ says that archiving a change creates them.
 
 ## Agent commands
 
-+ and Explore open a form for the first prompt (Cmd+Enter starts it). The action buttons send
-`/openspec-continue-change`, `/openspec-apply-change`, `/openspec-verify-change` or
-`/openspec-archive-change <change>`; + and Explore send `/openspec-propose <prompt>` or
-`/openspec-explore <prompt>`. The command goes to a Claude Code terminal of the workspace that is
-idle at its prompt (state `done`, with a tab), which is then shown; without one, a new Claude chat
-opens in the current window. These are the skills `openspec init --tools claude` (or a global
-install) gives Claude Code. Buttons send a prompt to the agent; its behavior and approval requests
-follow your Claude Code configuration.
++ and Explore open a form for the first prompt (Cmd+Enter starts it); the action buttons on a
+change (continue, apply, verify, archive) open the same sheet. **Nothing is sent until you press
+Start/Send**: the sheet shows the agent, the destination and the exact command first.
+
+| Profile | Agent | Command style | Model |
+|---|---|---|---|
+| Claude Code · skills (default) | `claude` | `/openspec-apply-change <change>` | optional, new sessions only |
+| Codex · skills | `codex` | `$openspec-apply-change <change>` | not offered |
+
+The six actions are `propose`, `explore`, `continue-change`, `apply-change`, `verify-change` and
+`archive-change`. Only these tested pairs exist: the plugin never guesses a syntax from an agent's
+name, and the skills must be installed for the agent you choose (`openspec init --tools claude` or
+`--tools codex`, or a global install). Agent and model are remembered **per workspace**.
+
+**Send to** offers *Automatic* (the default, as in 0.1.0: the idle session of that agent that has
+waited longest, else a new chat), *New session*, or one of the workspace's sessions of that agent.
+Only sessions at their prompt (state `done`) can be chosen; `working`, `waiting` and `blocked`
+ones are refused, and the worker checks again at send time (same workspace, same session, still
+idle). If the session changed, the delivery is refused or Orca does not confirm a new session in
+60 s, you get an error and **nothing is sent anywhere else**. A model only applies to a new
+Claude session (`orca agent launch --model`); an open session keeps its own, and Codex shows no
+model field. Buttons send a prompt to the agent; its behavior and approval requests follow your
+agent configuration.
 
 A workspace without `openspec/changes/` offers **Initialize OpenSpec**, which runs
 `openspec init --tools none --no-animation .` in the workspace root: it only creates `openspec/`
@@ -157,14 +173,14 @@ if it is closed (the worker runs `orca plugin open <key> --panel changes`; if th
 - `src/state.ts`: state, stepper, next step, action buttons, bar hue, strip counts, ages and the
   status bar summary, plus the contrast check of the state colours. Pure, shared by panel and
   worker.
-- `src/commands.ts`: builds and validates the slash command each button sends, and picks the plugin
-  key to open the panel.
+- `src/commands.ts`: the tested agent profiles, the command each action sends, model and
+  destination checks, and the plugin key to open the panel.
 - `src/protocol.ts`: the types panel and worker share (`changes.list`, `changes.detail`,
-  `changes.open`, `archive.list`, `archive.detail`, `specs.list`, `specs.open`, `agent.run`,
+  `changes.open`, `archive.list`, `archive.detail`, `specs.list`, `specs.open`, `agent.options`, `agent.prefs.set`, `agent.run`,
   `openspec.init`, `changes.changed`).
 - `src/panel/`: the html panel, in TypeScript with no build step (Orca transpiles it). `main.ts`
   holds the state, worker calls and redraws; `views.ts` the header, tabs, cards and lists;
-  `detail.ts` the detail of an active or archived change; `dom.ts` the `h()` builder, which only
+  `detail.ts` the detail of an active or archived change; `launch.ts` the command sheet; `dom.ts` the `h()` builder, which only
   sets text through text nodes, and the icons; `model.ts` the state and action types; `text.ts`
   the task text helpers and dates; `panel.css` the styles.
 - `openspec/`: the project's own OpenSpec specs and changes, and
@@ -172,7 +188,7 @@ if it is closed (the worker runs `orca plugin open <key> --panel changes`; if th
 - `fixtures/sample/`: a small OpenSpec workspace for trying the panel.
 
 The agent buttons and the status bar press run Orca's own CLI (`orca agent launch --surface chat
---focus` and `orca plugin open`, found inside Orca.app or on PATH): the host API cannot open a chat
+--focus [--model <id>]` and `orca plugin open`, found inside Orca.app or on PATH): the host API cannot open a chat
 or a panel.
 
 ## Develop

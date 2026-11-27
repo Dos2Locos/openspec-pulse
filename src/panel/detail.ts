@@ -2,6 +2,7 @@
 import type { ChangeDetail, Task, TaskSection } from '../protocol'
 import { h, icon, ICONS, type Child } from './dom'
 import type { Actions, PanelState } from './model'
+import { composer } from './launch'
 import { codeSegments, summarize } from './text'
 import { card, progressBar } from './views'
 
@@ -84,6 +85,7 @@ export function detailView(state: PanelState, actions: Actions): Child[] {
     archivedFolder ? actions.openArchivedFile(archivedFolder, file) : actions.openFile(change.name, file)
   return [
     back,
+    composer(state, actions),
     h('div', { class: 'detail' }, [
       card(change, state, actions, { asHeading: true, archived }),
       files(change, open),

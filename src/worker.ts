@@ -7,8 +7,8 @@ import { delimiter, isAbsolute, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import type { OrcaWorkerApi } from 'orca/worker'
 import { ARCHIVE_DIR, CHANGES_DIR, SPECS_DIR, countArchive, countSpecs, fileToOpen, openableFiles, readArchive, readArchivedDetail, readChangeDetail, readChanges, readSpecList, specCapabilities } from './openspec'
-import { agentLaunchArgs, buildPrompt, cliError, isAgentAction, isChangeAction, isSafeChangeName, launchedSurface, openPanelArgs, pickIdleClaudeTerminal, pickPluginKey } from './commands'
-import type { ChangesState } from './protocol'
+import { agentLaunchArgs, buildPrompt, checkModel, cliError, isAgentAction, isChangeAction, isProfileId, isSafeChangeName, isTarget, launchedSurface, listProfiles, listSessions, openPanelArgs, pickIdleTerminal, pickPluginKey, profileInfo, readPrefs, sessionProblem } from './commands'
+import type { AgentOptions, AgentPrefs, AgentTarget, ChangesState, ProfileId } from './protocol'
 import { statusBarSummary } from './state'
 
 const WATCH_DEBOUNCE_MS = 300
@@ -247,28 +247,101 @@ export default function activate(orca: OrcaWorkerApi): void {
     return listChanges()
   })
 
-  orca.panels.handle('agent.run', async ({ action, change, prompt }) => {
-    if (!isAgentAction(action)) throw hostError('invalid_params', `unknown action ${String(action)}`)
-    const workspace = await focusedWorkspace(orca)
-    if (!workspace) throw hostError('unavailable', 'No workspace is focused.')
-    // The change name goes into the agent's prompt: only accept one that exists on disk.
-    if (isChangeAction(action)) {
-      const known = workspace.isLocal && isSafeChangeName(change) && (await readChangeDetail(workspace.path, change))
-      if (!known) throw hostError('invalid_params', `No active change named ${String(change)}.`)
+  // Per workspace, versioned. Unknown fields of a newer version are kept when this one writes.
+  const prefsKey = (workspaceId: string): string => `agent:${workspaceId}`
+
+  async function loadPrefs(workspaceId: string): Promise<AgentPrefs> {
+    try {
+      return readPrefs(await orca.storage.get(prefsKey(workspaceId)))
+    } catch (error) {
+      orca.log(`cannot read agent preferences: ${(error as Error).message}`)
+      return readPrefs(null)
     }
-    const built = buildPrompt(action, { change, prompt })
-    if ('error' in built) throw hostError('invalid_params', built.error)
-    return (await sendToIdleTerminal(built.prompt)) ?? launchChat(workspace.path, built.prompt)
+  }
+
+  orca.panels.handle('agent.options', async (): Promise<AgentOptions | null> => {
+    const workspace = await focusedWorkspace(orca)
+    if (!workspace?.isLocal) return null
+    const [prefs, { agents }] = await Promise.all([loadPrefs(workspace.id), orca.host.call('agents.list', {})])
+    return { workspaceId: workspace.id, profiles: listProfiles(), prefs, sessions: listSessions(agents) }
   })
 
-  /** Types the prompt into an idle Claude Code terminal of the focused workspace, if there is one. */
-  async function sendToIdleTerminal(prompt: string): Promise<{ surface: 'open-terminal' } | null> {
-    const { agents } = await orca.host.call('agents.list', {})
-    const terminalId = pickIdleClaudeTerminal(agents)
-    if (!terminalId) {
-      orca.log(`no idle Claude Code terminal (${agents.map((a) => `${a.agent}:${a.state}:${a.terminalId ?? 'no-terminal'}`).join(', ')}); opening a chat`)
-      return null
+  orca.panels.handle('agent.prefs.set', async ({ workspaceId, prefs }) => {
+    const workspace = await focusedWorkspace(orca)
+    if (!workspace?.isLocal || workspace.id !== workspaceId) throw hostError('workspace_changed', 'The focused workspace changed.')
+    if (!isProfileId(prefs?.profile)) throw hostError('invalid_params', `Unknown profile ${String(prefs?.profile)}.`)
+    const checked = checkModel(prefs.profile, prefs.model)
+    if ('error' in checked) throw hostError('invalid_params', checked.error)
+    const previous = await orca.storage.get(prefsKey(workspaceId)).catch(() => null)
+    const kept = previous && typeof previous === 'object' && !Array.isArray(previous) ? previous : {}
+    const saved: AgentPrefs = { profile: prefs.profile, model: checked.model }
+    await orca.storage.set(prefsKey(workspaceId), { ...kept, v: 1, ...saved })
+    return saved
+  })
+
+  // One send at a time: a double click or a second panel cannot type the prompt twice.
+  let sending = false
+
+  orca.panels.handle('agent.run', async (input) => {
+    const { action, change, prompt } = input
+    if (!isAgentAction(action)) throw hostError('invalid_params', `unknown action ${String(action)}`)
+    const target: AgentTarget = input.target ?? 'auto'
+    if (!isTarget(target)) throw hostError('invalid_params', 'unknown destination')
+    if (sending) throw hostError('busy', 'Another command is being sent.')
+    sending = true
+    try {
+      const workspace = await focusedWorkspace(orca)
+      if (!workspace) throw hostError('unavailable', 'No workspace is focused.')
+      // What the person saw in the panel must still be what is focused.
+      if (input.workspaceId !== undefined && input.workspaceId !== workspace.id) {
+        throw hostError('workspace_changed', 'The focused workspace changed; nothing was sent.')
+      }
+      const saved = await loadPrefs(workspace.id)
+      const profile: ProfileId = input.profile ?? saved.profile
+      if (!isProfileId(profile)) throw hostError('invalid_params', `Unknown profile ${String(profile)}.`)
+      const model = checkModel(profile, input.model === undefined ? saved.model : input.model)
+      if ('error' in model) throw hostError('invalid_params', model.error)
+      // The change name goes into the agent's prompt: only accept one that exists on disk.
+      if (isChangeAction(action)) {
+        const known = workspace.isLocal && isSafeChangeName(change) && (await readChangeDetail(workspace.path, change))
+        if (!known) throw hostError('invalid_params', `No active change named ${String(change)}.`)
+      }
+      const built = buildPrompt(profile, action, { change, prompt })
+      if ('error' in built) throw hostError('invalid_params', built.error)
+      const agent = profileInfo(profile).agent
+      if (target === 'new') return { ...(await launchChat(workspace.path, profile, built.prompt, model.model)), agent }
+      const terminalId = await pickTerminal(profile, target)
+      if (terminalId) {
+        await sendToTerminal(workspace, terminalId, built.prompt)
+        return { surface: 'open-terminal' as const, agent }
+      }
+      return { ...(await launchChat(workspace.path, profile, built.prompt, model.model)), agent }
+    } finally {
+      sending = false
     }
+  })
+
+  /**
+   * The terminal to type into, or null to open a new session (`auto` with none idle). A session the
+   * person chose that is busy, asking, gone or another agent is an error, never a different target.
+   */
+  async function pickTerminal(profile: ProfileId, target: AgentTarget): Promise<string | null> {
+    if (target === 'new') return null
+    const { agents } = await orca.host.call('agents.list', {})
+    if (target === 'auto') {
+      const idle = pickIdleTerminal(profile, agents)
+      if (!idle) orca.log(`no idle ${profileInfo(profile).agent} terminal (${agents.map((a) => `${a.agent}:${a.state}:${a.terminalId ?? 'no-terminal'}`).join(', ')}); opening a chat`)
+      return idle
+    }
+    const problem = sessionProblem(profile, agents, target.terminalId)
+    if (problem) throw hostError('session_unavailable', problem)
+    return target.terminalId
+  }
+
+  /** Types the prompt into the terminal, after checking once more that the workspace is still focused. */
+  async function sendToTerminal(workspace: Workspace, terminalId: string, prompt: string): Promise<void> {
+    const current = await focusedWorkspace(orca)
+    if (current?.id !== workspace.id) throw hostError('workspace_changed', 'The focused workspace changed; nothing was sent.')
     // A newline would submit the TUI's input early: send the prompt as one line.
     const { accepted } = await orca.host.call('terminal.sendText', {
       terminalId,
@@ -276,29 +349,29 @@ export default function activate(orca: OrcaWorkerApi): void {
       enter: true
     })
     if (!accepted) {
-      orca.log(`terminal ${terminalId} did not accept the prompt; opening a chat`)
-      return null
+      orca.log(`terminal ${terminalId} did not accept the prompt`)
+      throw hostError('delivery_rejected', 'The session did not accept the command. Nothing was sent elsewhere.')
     }
     await orca.host.call('terminal.focus', { terminalId })
-    return { surface: 'open-terminal' }
   }
 
   /**
-   * A new Claude chat, shown in the current window. The host API's agent.launch only opens a
+   * A new agent chat, shown in the current window. The host API's agent.launch only opens a
    * background terminal, so this runs Orca's CLI; execFile with an argument list, so the prompt is
-   * never parsed by a shell.
+   * never parsed by a shell. A timeout or failure is reported, not retried elsewhere.
    */
-  async function launchChat(workspacePath: string, prompt: string): Promise<{ surface: 'chat' | 'terminal' }> {
+  async function launchChat(workspacePath: string, profile: ProfileId, prompt: string, model: string | null): Promise<{ surface: 'chat' | 'terminal' }> {
     const cli = resolveOrcaCli(workspacePath)
     if (!cli) throw hostError('unavailable', 'Orca CLI not found.')
+    const label = profileInfo(profile).label
     try {
-      const { stdout } = await run(cli, agentLaunchArgs(workspacePath, prompt), { timeout: LAUNCH_TIMEOUT_MS })
+      const { stdout } = await run(cli, agentLaunchArgs(profile, workspacePath, prompt, model), { timeout: LAUNCH_TIMEOUT_MS })
       return { surface: launchedSurface(stdout) }
     } catch (error) {
-      const err = error as Error & { stdout?: string }
-      const reason = cliError(err.stdout) ?? err.message
+      const err = error as Error & { stdout?: string; killed?: boolean }
+      const reason = err.killed ? `Orca did not confirm the new session within ${LAUNCH_TIMEOUT_MS / 1000} s` : (cliError(err.stdout) ?? err.message)
       orca.log(`orca agent launch failed: ${reason}`)
-      throw new Error(`Could not start Claude: ${reason}`)
+      throw new Error(`Could not start ${label}: ${reason}`)
     }
   }
 

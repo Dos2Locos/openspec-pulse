@@ -13,7 +13,8 @@ import {
   type ChangeState
 } from '../state'
 import { h, icon, ICONS, type Child } from './dom'
-import type { Actions, FreeAction, PanelState, Tab } from './model'
+import { composer } from './launch'
+import type { Actions, PanelState, Tab } from './model'
 import { formatDate } from './text'
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -170,51 +171,6 @@ export function refreshAges(root: ParentNode): void {
   for (const el of root.querySelectorAll<HTMLElement>('.age[data-updated]')) {
     el.textContent = `edited ${relativeAge(Number(el.dataset.updated), now)}`
   }
-}
-
-const FORMS: Record<FreeAction, { title: string; label: string; placeholder: string }> = {
-  propose: { title: 'New proposal', label: 'What do you want to change?', placeholder: 'Add a CSV export to the monthly report…' },
-  explore: {
-    title: 'Explore',
-    label: 'What do you want to think through? (optional)',
-    placeholder: 'How should we cache the API answers?'
-  }
-}
-
-export function composer(state: PanelState, actions: Actions): HTMLElement | null {
-  const action = state.composer
-  if (!action) return null
-  const form = FORMS[action]
-  const canStart = !state.starting && (action === 'explore' || state.draft.trim() !== '')
-  const textarea = h('textarea', {
-    id: 'composer-text',
-    'data-focus': 'composer',
-    placeholder: form.placeholder,
-    rows: 4,
-    oninput: (event) => actions.setDraft((event.target as HTMLTextAreaElement).value),
-    onkeydown: (event) => {
-      const key = event as KeyboardEvent
-      if (key.key === 'Enter' && (key.metaKey || key.ctrlKey)) {
-        key.preventDefault()
-        actions.submit()
-      } else if (key.key === 'Escape') actions.closeComposer()
-    }
-  }) as HTMLTextAreaElement
-  textarea.value = state.draft
-  return h('section', { class: 'composer', 'aria-label': form.title }, [
-    h('h2', {}, [form.title]),
-    h('label', { for: 'composer-text' }, [form.label]),
-    textarea,
-    h('p', { class: 'hint message' }, [
-      `Runs /openspec-${action} in an idle Claude Code terminal, or a new chat. Cmd+Enter to start.`
-    ]),
-    h('div', { class: 'row-end' }, [
-      h('button', { type: 'button', class: 'secondary', onclick: () => actions.closeComposer() }, ['Cancel']),
-      h('button', { type: 'button', class: 'primary', disabled: !canStart, onclick: () => actions.submit() }, [
-        state.starting ? 'Starting…' : 'Start'
-      ])
-    ])
-  ])
 }
 
 const TAB_LABELS: Record<Tab, string> = { active: 'Active', archive: 'Archive', specs: 'Specs' }

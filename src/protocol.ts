@@ -32,6 +32,27 @@ export type SpecSummary = { capability: string; purpose: string | null; requirem
 /** What an agent button starts: a new proposal, exploration, or a step on one change. */
 export type AgentAction = 'propose' | 'explore' | 'continue' | 'apply' | 'verify' | 'archive'
 
+/** Tested agent + command-style pairs; an unknown id is never guessed from a name. */
+export type ProfileId = 'claude-skills' | 'codex-skills'
+
+/** What a workspace remembers: the profile and an optional model (Claude only, new sessions only). */
+export type AgentPrefs = { profile: ProfileId; model: string | null }
+
+export type ProfileInfo = { id: ProfileId; label: string; agent: 'claude' | 'codex'; supportsModel: boolean }
+
+/** A terminal of the workspace running an agent. `available` is true only in `done` (at its prompt). */
+export type SessionInfo = { terminalId: string; title: string | null; agent: string; state: string; available: boolean }
+
+/** `auto` keeps 0.1.0's behavior: the longest-idle session, else a new one. */
+export type AgentTarget = 'auto' | 'new' | { terminalId: string }
+
+export type AgentOptions = {
+  workspaceId: string
+  profiles: ProfileInfo[]
+  prefs: AgentPrefs
+  sessions: SessionInfo[]
+}
+
 export type ChangesState =
   | { status: 'no-workspace' }
   /** The workspace lives on another host (SSH, WSL…), which the worker cannot read. */
@@ -59,14 +80,27 @@ declare module 'orca' {
     'specs.list': { output: SpecSummary[] }
     /** Opens the spec.md of a listed capability. */
     'specs.open': { input: { capability: string }; output: { opened: boolean } }
+    /** Profiles, the focused workspace's saved choice and its agent sessions; null without a local workspace. */
+    'agent.options': { output: AgentOptions | null }
+    /** Saves the profile and model of a workspace; refused when it is no longer the focused one. */
+    'agent.prefs.set': { input: { workspaceId: string; prefs: AgentPrefs }; output: AgentPrefs }
     /**
-     * Sends the action's command to an idle Claude Code terminal of the focused workspace, or else
-     * starts Claude in a new chat; either way it is shown.
+     * Sends the action's command to the target in the focused workspace and shows it. Everything is
+     * checked again here: `workspaceId` must still be focused, a session must still be idle and of
+     * the profile's agent. A failure never falls back to another target.
      */
     'agent.run': {
-      input: { action: AgentAction; change?: string; prompt?: string }
+      input: {
+        action: AgentAction
+        change?: string
+        prompt?: string
+        workspaceId?: string
+        profile?: ProfileId
+        model?: string | null
+        target?: AgentTarget
+      }
       /** `open-terminal` when sent to a running session; `chat`, or `terminal` when Orca could not open a chat. */
-      output: { surface: 'open-terminal' | 'chat' | 'terminal' }
+      output: { surface: 'open-terminal' | 'chat' | 'terminal'; agent: 'claude' | 'codex' }
     }
     /** Runs `openspec init` in the focused workspace and answers the new list. */
     'openspec.init': { output: ChangesState }

@@ -1,10 +1,11 @@
 // OpenSpec Pulse html panel. No build step: Orca transpiles this file and its imports when the
 // panel loads. One state object; render() rebuilds the DOM from it.
-import type { AgentAction } from '../protocol'
+import { buildPrompt } from '../commands'
+import type { AgentAction, AgentTarget, ProfileId } from '../protocol'
 import { stateCounts } from '../state'
 import { detailView } from './detail'
 import { h } from './dom'
-import type { Actions, PanelState } from './model'
+import { activeLaunch, type Actions, type PanelState } from './model'
 import { header, listView, refreshAges, tabBar } from './views'
 
 const AGE_REFRESH_MS = 60_000
@@ -23,6 +24,11 @@ let state: PanelState = {
   error: null,
   notice: null,
   composer: null,
+  pending: null,
+  agent: null,
+  profile: 'claude-skills',
+  model: '',
+  target: 'auto',
   draft: '',
   starting: false,
   initializing: false,
@@ -111,23 +117,75 @@ async function onWorkspace(id: string | null): Promise<void> {
       }
     }
     update(
-      { selected, detail: null, filter: null, composer: null, tab: 'active', archive: null, specs: null, archivedFolder: null, archivedDetail: null },
+      { selected, detail: null, filter: null, composer: null, pending: null, agent: null, tab: 'active', archive: null, specs: null, archivedFolder: null, archivedDetail: null },
       false
     )
   }
   await refresh()
 }
 
-async function run(action: AgentAction, input: { change?: string; prompt?: string }): Promise<boolean> {
+const SESSION = 'session:'
+
+function toTarget(value: string): AgentTarget {
+  return value.startsWith(SESSION) ? { terminalId: value.slice(SESSION.length) } : value === 'new' ? 'new' : 'auto'
+}
+
+/** A destination that is no longer offered for this profile falls back to automatic. */
+function validTarget(target: string, profile: ProfileId): string {
+  if (!target.startsWith(SESSION)) return target
+  const info = state.agent?.profiles.find((p) => p.id === profile)
+  const session = state.agent?.sessions.find((s) => `${SESSION}${s.terminalId}` === target)
+  return session && info && session.agent === info.agent && session.available ? target : 'auto'
+}
+
+/** Reads the workspace's profiles, saved choice and sessions; `reset` takes the saved choice. */
+async function loadAgent(reset: boolean): Promise<void> {
+  const agent = await orca.plugin.request('agent.options')
+  const sameWorkspace = agent && state.agent?.workspaceId === agent.workspaceId
+  if (reset || !sameWorkspace) {
+    update({ agent, profile: agent?.prefs.profile ?? 'claude-skills', model: agent?.prefs.model ?? '', target: 'auto' })
+  } else {
+    update({ agent })
+    update({ target: validTarget(state.target, state.profile) })
+  }
+}
+
+async function savePrefs(): Promise<void> {
+  const workspace = state.agent?.workspaceId
+  if (!workspace) return
+  try {
+    await orca.plugin.request('agent.prefs.set', { workspaceId: workspace, prefs: { profile: state.profile, model: state.model.trim() || null } })
+  } catch (error) {
+    update({ error: `Cannot remember the agent choice: ${message(error)}` })
+  }
+}
+
+async function run(launch: { action: AgentAction; change?: string }, input: { prompt?: string }): Promise<boolean> {
+  const agent = state.agent
+  const info = agent?.profiles.find((p) => p.id === state.profile)
+  if (!agent || !info) return false
   update({ starting: true, notice: null })
   try {
-    const { surface } = await orca.plugin.request('agent.run', { action, ...input })
-    const what = input.change ? `${action} ${input.change}` : action
-    const where = surface === 'open-terminal' ? 'Sent to the open Claude Code terminal' : `Claude started in a new ${surface}`
+    const sessionTarget = state.target.startsWith(SESSION)
+    const answer = await orca.plugin.request('agent.run', {
+      action: launch.action,
+      change: launch.change,
+      ...input,
+      // What the sheet showed: the host refuses it if the workspace or the session changed since.
+      workspaceId: agent.workspaceId,
+      profile: state.profile,
+      model: info.supportsModel && !sessionTarget ? state.model.trim() || null : null,
+      target: toTarget(state.target)
+    })
+    const what = launch.change ? `${launch.action} ${launch.change}` : launch.action
+    const name = answer.agent === 'codex' ? 'Codex' : 'Claude Code'
+    const where = answer.surface === 'open-terminal' ? `Sent to the open ${name} terminal` : `${name} started in a new ${answer.surface}`
     update({ notice: { tone: 'success', text: `${where}: ${what}.` } })
     return true
   } catch (error) {
     update({ notice: { tone: 'error', text: message(error) } })
+    // The sessions may be why it failed: show the current ones.
+    void loadAgent(false).catch(() => undefined)
     return false
   } finally {
     update({ starting: false })
@@ -154,7 +212,11 @@ const actions: Actions = {
   openSpec: (capability) => void guarded(async () => void (await orca.plugin.request('specs.open', { capability }))),
   setFilter: (filter) => update({ filter }),
   openFile: (name, file) => void guarded(async () => void (await orca.plugin.request('changes.open', { name, file }))),
-  run: (action, change) => void run(action, { change }),
+  // Never sends at once: the sheet shows agent, destination and command first.
+  run: (action, change) => {
+    update({ pending: { action, change }, composer: null, draft: '', notice: null })
+    void guarded(() => loadAgent(true))
+  },
   initialize: () => {
     update({ initializing: true })
     void guarded(async () => update({ list: await orca.plugin.request('openspec.init') })).finally(() =>
@@ -162,18 +224,39 @@ const actions: Actions = {
     )
   },
   // The form lives in the Active list: show that first.
-  openComposer: (composer) => update({ composer, draft: '', notice: null, tab: 'active', archivedFolder: null, archivedDetail: null }),
-  closeComposer: () => update({ composer: null }),
+  openComposer: (composer) => {
+    update({ composer, pending: null, draft: '', notice: null, tab: 'active', archivedFolder: null, archivedDetail: null })
+    void guarded(() => loadAgent(true))
+  },
+  closeComposer: () => update({ composer: null, pending: null }),
+  setProfile: (profile) => {
+    const info = state.agent?.profiles.find((p) => p.id === profile)
+    update({ profile, model: info?.supportsModel ? state.model : '', target: validTarget(state.target, profile) })
+    void savePrefs()
+  },
+  setModel: (model) => {
+    update({ model }, false)
+    void savePrefs()
+  },
+  setTarget: (target) => update({ target }),
   // No redraw while typing: the textarea already shows it. Only the Start button follows.
   setDraft: (draft) => {
     update({ draft }, false)
+    // The textarea is not redrawn, so the command preview is updated in place.
+    const launch = activeLaunch(state)
+    const code = root.querySelector('.composer .preview code')
+    if (launch && code) {
+      const built = buildPrompt(state.profile, launch.action, { change: launch.change, prompt: draft })
+      code.textContent = 'prompt' in built ? built.prompt : 'Describe the change to propose.'
+    }
     const start = root.querySelector<HTMLButtonElement>('.composer .primary')
-    if (start) start.disabled = state.starting || (state.composer === 'propose' && draft.trim() === '')
+    if (start) start.disabled = state.starting || !state.agent || (state.composer === 'propose' && draft.trim() === '')
   },
   submit: () => {
-    const action = state.composer
-    if (!action || state.starting || (action === 'propose' && !state.draft.trim())) return
-    void run(action, { prompt: state.draft }).then((ok) => ok && update({ composer: null }))
+    const launch = activeLaunch(state)
+    if (!launch || state.starting || (launch.action === 'propose' && !state.draft.trim())) return
+    const free = state.composer !== null
+    void run(launch, free ? { prompt: state.draft } : {}).then((ok) => ok && update({ composer: null, pending: null }))
   },
   toggleExpanded: (key) => {
     const expanded = new Set(state.expanded)
@@ -189,7 +272,7 @@ const actions: Actions = {
   }
 }
 
-const FOCUSABLE = 'button, summary, textarea'
+const FOCUSABLE = 'button, summary, textarea, select, input'
 /** What identifies a control across redraws: its data-focus, else its tag and name. */
 const focusKey = (el: Element): string =>
   (el as HTMLElement).dataset?.focus ?? `${el.tagName}:${el.getAttribute('aria-label') ?? el.textContent}`
@@ -235,6 +318,10 @@ function start(): void {
   // workspace.changed fires once on subscribe, which does the first load.
   orca.on('workspace.changed', ({ context }) => void onWorkspace(context?.workspaceId ?? null))
   orca.plugin.on('changes.changed', () => void refresh())
+  // A session that finishes or starts asking changes what the open sheet may offer.
+  orca.on('agent.status.changed', () => {
+    if (activeLaunch(state)) void loadAgent(false).catch(() => undefined)
+  })
   // The --orca-* variables and the html class change on their own; nothing to redraw.
   setInterval(() => refreshAges(root), AGE_REFRESH_MS)
   void readVersion()
