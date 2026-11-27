@@ -13,7 +13,7 @@
 ## 3. Interfaz y comportamiento
 
 - [x] 3.1 Implementar los controles y estados visibles de esta propuesta reutilizando el modelo del panel y los perfiles aplicables.
-- [ ] 3.2 Verificar todos los escenarios del delta, navegación por teclado, foco y estados vacíos/error; revisar ambos temas cuando corresponda.
+- [x] 3.2 Verificar todos los escenarios del delta, navegación por teclado, foco y estados vacíos/error; revisar ambos temas cuando corresponda.
 
 ## 4. Integración y documentación
 
